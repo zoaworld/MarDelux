@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "marcacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "marcacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clienteEmail", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

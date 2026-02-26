@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MarDelux
 
-## Getting Started
+Web App Full-Stack para o estúdio de massagens **MarDelux** (exclusivo para mulheres). Production Ready.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js** (App Router)
+- **Tailwind CSS**
+- **Firebase** (Auth, Firestore, Storage)
+- **Lucide React** (ícones)
+
+## Design
+
+- Estilo minimalista de luxo
+- Cores: Fundo branco (#FFFFFF), detalhes rosa/rose gold (#b76e79), cinza suave (#F5F5F5)
+- Público-alvo: feminino
+- Responsivo e otimizado para mardelux.pt
+
+## Estrutura do projeto
+
+```
+src/
+├── app/              # App Router (páginas e layouts)
+│   ├── admin/        # Painel de gestão
+│   ├── agendar/      # Fluxo de agendamento
+│   ├── cliente/      # Área do cliente
+│   └── login/        # Registo/Login
+├── components/       # Componentes reutilizáveis
+│   └── ui/
+├── lib/              # Configuração e utilitários
+│   ├── firebase/     # Firebase (Auth, Firestore, Storage)
+│   └── constants.ts  # Horários, buffer time, etc.
+└── types/            # Tipos TypeScript
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Firebase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+A app está configurada com o projeto Firebase **mardelux-app** (Auth, Firestore, Storage). As credenciais estão em `src/lib/firebase/config.ts`. Para produção, pode mover-se para variáveis de ambiente (ver `.env.local.example`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+- `npm run dev` — servidor de desenvolvimento
+- `npm run build` — build para produção
+- `npm run start` — servir build de produção
+- `npm run lint` — ESLint
 
-To learn more about Next.js, take a look at the following resources:
+## Próximos passos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Implementar fluxo de agendamento (Serviço → Data/Hora → Confirmação)
+2. Implementar Auth (registo/login) e área do cliente
+3. Implementar painel admin (agenda, CRM, financeiro, configurações)
+4. Integrar Stripe para pagamentos

@@ -4,10 +4,15 @@ import {
   getDocs,
   query,
   where,
+  doc,
+  updateDoc,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./config";
 import { BUFFER_TIME_MINUTES } from "@/lib/constants";
+import { getHorarioParaData, type HorarioConfig } from "./app-settings";
+import { getCached, invalidate, CACHE_KEYS, CACHE_TTL } from "./cache";
+
 const COLLECTION = "marcacoes";
 
 export interface MarcacaoInput {
@@ -54,14 +59,29 @@ export async function getMarcacoesByDate(dataStr: string) {
   });
 }
 
-/** Calcula slots disponíveis para um dia: início 09:00, fim 18:00, buffer 15 min entre sessões */
+/** Calcula slots disponíveis para um dia. dataStr = YYYY-MM-DD. Se config for omitido, usa constantes. */
 export function getSlotsDisponiveis(
+  dataStr: string,
   duracaoMinutos: number,
-  ocupados: { horaInicio: string; horaFim: string }[]
+  ocupados: { horaInicio: string; horaFim: string }[],
+  config?: HorarioConfig | null
 ): string[] {
-  const START = 9 * 60; // 09:00
-  const END = 18 * 60; // 18:00
-  const buffer = BUFFER_TIME_MINUTES;
+  let START: number;
+  let END: number;
+  let buffer: number;
+
+  if (config) {
+    const horario = getHorarioParaData(dataStr, config);
+    if (!horario) return [];
+    START = horario.start;
+    END = horario.end;
+    buffer = horario.buffer;
+  } else {
+    START = 9 * 60;
+    END = 18 * 60;
+    buffer = BUFFER_TIME_MINUTES;
+  }
+
   const blocosOcupados = ocupados.map((o) => ({
     start: timeToMinutes(o.horaInicio),
     end: timeToMinutes(o.horaFim) + buffer,
@@ -74,9 +94,68 @@ export function getSlotsDisponiveis(
       (b) => (pos >= b.start && pos < b.end) || (pos + duracaoMinutos > b.start && pos + duracaoMinutos <= b.end) || (pos <= b.start && pos + duracaoMinutos >= b.end)
     );
     if (!conflito) slots.push(minutesToTime(pos));
-    pos += 30; // incrementar de 30 em 30 min para ter slots razoáveis
+    pos += 30;
   }
   return slots;
+}
+
+async function fetchAllMarcacoes(max = 200) {
+  if (!db) return [];
+  const ref = collection(db, COLLECTION);
+  try {
+    const snap = await getDocs(ref);
+    const list = snap.docs.map((d) => {
+      const x = d.data();
+      return {
+        id: d.id,
+        clienteEmail: (x.clienteEmail as string) ?? "",
+        clienteNome: (x.clienteNome as string) ?? "",
+        clienteTelefone: x.clienteTelefone as string | undefined,
+        servicoId: (x.servicoId as string) ?? "",
+        servicoNome: (x.servicoNome as string) ?? "",
+        duracaoMinutos: (x.duracaoMinutos as number) ?? 0,
+        preco: (x.preco as number) ?? 0,
+        data: (x.data as string) ?? "",
+        horaInicio: (x.horaInicio as string) ?? "",
+        horaFim: (x.horaFim as string) ?? "",
+        status: (x.status as string) ?? "pendente",
+        notasSessao: x.notasSessao as string | undefined,
+        createdAt: x.createdAt,
+        updatedAt: x.updatedAt,
+      };
+    });
+    list.sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() ?? 0;
+      const tb = b.createdAt?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+    return list.slice(0, max);
+  } catch {
+    return [];
+  }
+}
+
+/** Todas as marcações para o admin (com cache 1 min) */
+export async function getAllMarcacoes(max = 200) {
+  return getCached(
+    CACHE_KEYS.marcacoes,
+    CACHE_TTL.marcacoes,
+    () => fetchAllMarcacoes(max)
+  );
+}
+
+/** Atualizar marcação (status, notas de sessão SOAP) */
+export async function updateMarcacao(
+  id: string,
+  data: { status?: string; notasSessao?: string }
+): Promise<void> {
+  if (!db) throw new Error("Firebase não está configurado.");
+  const ref = doc(db, COLLECTION, id);
+  await updateDoc(ref, {
+    ...data,
+    updatedAt: Timestamp.now(),
+  });
+  invalidate(CACHE_KEYS.marcacoes);
 }
 
 /** Marcações de um cliente pelo email (para área do cliente) */
@@ -124,5 +203,6 @@ export async function createMarcacao(input: MarcacaoInput): Promise<string> {
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
+  invalidate(CACHE_KEYS.marcacoes);
   return docRef.id;
 }

@@ -18,6 +18,14 @@ export interface Servico {
   duracaoMinutos: number;
   preco: number;
   ativo: boolean;
+  /** Ordem de exibição (menor = primeiro) */
+  ordem?: number;
+  /** Categoria para filtrar/agrupar (ex.: Massagem, Estética) */
+  categoria?: string;
+  /** URL de imagem do serviço */
+  imagemUrl?: string;
+  /** Destaque na listagem */
+  destaque?: boolean;
 }
 
 /** Marcação/Agendamento */

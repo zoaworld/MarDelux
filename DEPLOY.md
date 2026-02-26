@@ -30,7 +30,12 @@ No projeto Vercel (mar-delux):
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:440285677582:web:54f863260c74cbd39a145f` |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | `G-LYHW7PNT8Y` |
 
-3. Guardar. Os valores ficam em segredo e não aparecem no repositório.
+3. **Opcional – painel admin:** para restringir `/admin` a certos emails, adicionar:
+   - `NEXT_PUBLIC_ADMIN_EMAILS` = lista de emails separados por vírgula (ex.: `admin@mardelux.pt,outro@email.pt`). Quem não estiver na lista vê "Acesso reservado ao administrador".
+
+4. Guardar. Os valores ficam em segredo e não aparecem no repositório.
+
+**Firestore:** A app guarda o horário de funcionamento em `config/horario` (campos `startHour`, `endHour`, `bufferMinutes`). Se usares regras de segurança no Firestore, permite leitura/escrita a esta coleção para utilizadores autenticados (ou apenas admin).
 
 ---
 

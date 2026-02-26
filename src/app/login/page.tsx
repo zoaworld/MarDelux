@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import Logo from "@/components/Logo";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") ?? "/cliente";
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -25,7 +28,7 @@ export default function LoginPage() {
       } else {
         await signUp(email, password, nome || undefined);
       }
-      router.push("/cliente");
+      router.push(redirect.startsWith("/") ? redirect : "/cliente");
       router.refresh();
     } catch (err: unknown) {
       const message =
@@ -39,40 +42,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F5F5F5] px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm">
-        <Link
-          href="/"
-          className="text-lg font-semibold text-[#b76e79] hover:underline"
-        >
-          MarDelux
-        </Link>
-        <h1 className="mt-6 text-xl font-semibold text-[#171717]">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-12">
+      <div className="w-full max-w-md card-elevated p-8 md:p-10">
+        <Logo variant="text" height={40} className="block" />
+        <h1 className="font-display mt-8 text-2xl font-semibold text-[var(--foreground)]">
           {mode === "login" ? "Entrar" : "Criar conta"}
         </h1>
-        <p className="mt-1 text-sm text-[#666]">
+        <p className="mt-1 text-sm text-[var(--gray-dark)]">
           {mode === "login"
             ? "Aceda à sua área de cliente."
             : "Registe-se para ver as suas marcações e histórico."}
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           {mode === "register" && (
             <div>
-              <label className="block text-sm font-medium text-[#171717]">
+              <label className="block text-sm font-medium text-[var(--foreground)]">
                 Nome
               </label>
               <input
                 type="text"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717] focus:border-[#b76e79] focus:outline-none focus:ring-1 focus:ring-[#b76e79]"
+                className="input-elegant mt-1"
                 placeholder="O seu nome"
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-[#171717]">
+            <label className="block text-sm font-medium text-[var(--foreground)]">
               Email
             </label>
             <input
@@ -80,12 +78,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717] focus:border-[#b76e79] focus:outline-none focus:ring-1 focus:ring-[#b76e79]"
+              className="input-elegant mt-1"
               placeholder="o seu@email.pt"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#171717]">
+            <label className="block text-sm font-medium text-[var(--foreground)]">
               Palavra-passe
             </label>
             <input
@@ -94,7 +92,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717] focus:border-[#b76e79] focus:outline-none focus:ring-1 focus:ring-[#b76e79]"
+              className="input-elegant mt-1"
               placeholder="Mín. 6 caracteres"
             />
           </div>
@@ -104,7 +102,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full bg-[#b76e79] py-2.5 text-sm font-medium text-white transition hover:bg-[#a65d68] disabled:opacity-60"
+            className="btn-primary w-full disabled:opacity-60"
           >
             {loading ? "A processar…" : mode === "login" ? "Entrar" : "Criar conta"}
           </button>
@@ -116,19 +114,31 @@ export default function LoginPage() {
             setMode((m) => (m === "login" ? "register" : "login"));
             setError(null);
           }}
-          className="mt-4 w-full text-center text-sm text-[#666] hover:text-[#b76e79]"
+          className="mt-6 w-full text-center text-sm text-[var(--gray-mid)] hover:text-[var(--rose-gold)]"
         >
           {mode === "login"
             ? "Ainda não tem conta? Registe-se"
             : "Já tem conta? Entrar"}
         </button>
 
-        <p className="mt-6 text-center text-sm text-[#666]">
-          <Link href="/" className="text-[#b76e79] hover:underline">
+        <p className="mt-8 text-center text-sm text-[var(--gray-mid)]">
+          <Link href="/" className="text-[var(--rose-gold)] hover:underline">
             ← Voltar ao início
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <p className="text-[var(--gray-mid)]">A carregar…</p>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

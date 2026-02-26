@@ -5,6 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMarcacoesByClienteEmail } from "@/lib/firebase";
+import Logo from "@/components/Logo";
+
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdmin(email: string | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
 
 function formatDate(str: string): string {
   return new Date(str + "T12:00:00").toLocaleDateString("pt-PT", {
@@ -53,8 +64,8 @@ export default function ClientePage() {
 
   if (authLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F5F5F5]">
-        <p className="text-[#666]">A carregar…</p>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <p className="text-[var(--gray-mid)]">A carregar…</p>
       </div>
     );
   }
@@ -67,21 +78,21 @@ export default function ClientePage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
-      <header className="border-b border-[#eee] bg-white px-4 py-4 md:px-8">
+    <div className="min-h-screen bg-[var(--background)]">
+      <header className="border-b border-[var(--gray-light)] bg-[var(--white)] px-4 py-4 shadow-[var(--shadow-soft)] md:px-8">
         <nav className="mx-auto flex max-w-4xl items-center justify-between">
-          <Link
-            href="/"
-            className="text-xl font-semibold tracking-tight text-[#b76e79] hover:opacity-90"
-          >
-            MarDelux
-          </Link>
+          <Logo variant="text" height={40} />
           <div className="flex items-center gap-4">
-            <span className="text-sm text-[#666]">{user.email}</span>
+            {isAdmin(user.email ?? undefined) && (
+              <Link href="/admin" className="btn-secondary py-2 text-sm">
+                Painel Admin
+              </Link>
+            )}
+            <span className="text-sm text-[var(--gray-mid)]">{user.email}</span>
             <button
               type="button"
               onClick={() => signOut().then(() => router.push("/"))}
-              className="text-sm text-[#b76e79] hover:underline"
+              className="text-sm font-medium text-[var(--rose-gold)] hover:underline"
             >
               Sair
             </button>
@@ -89,51 +100,54 @@ export default function ClientePage() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <h1 className="text-2xl font-semibold text-[#171717]">
+      <main className="mx-auto max-w-4xl px-4 py-10">
+        <p className="font-display text-sm uppercase tracking-[0.2em] text-[var(--rose-gold)]">
           Área do Cliente
+        </p>
+        <h1 className="font-display mt-1 text-3xl font-semibold text-[var(--foreground)]">
+          As suas marcações
         </h1>
-        <p className="mt-1 text-[#666]">
-          As suas marcações e histórico. Para nova reserva use o mesmo email que registou.
+        <p className="mt-2 text-[var(--gray-dark)]">
+          Para nova reserva use o mesmo email que registou.
         </p>
 
-        <div className="mt-6 flex gap-4">
-          <Link
-            href="/agendar"
-            className="rounded-full bg-[#b76e79] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#a65d68]"
-          >
+        <div className="mt-8 flex flex-wrap gap-4">
+          <Link href="/agendar" className="btn-primary">
             Nova marcação
+          </Link>
+          <Link href="/cliente/servicos" className="btn-secondary">
+            Comprar serviços e packs
           </Link>
         </div>
 
-        <section className="mt-10">
-          <h2 className="text-lg font-medium text-[#171717]">Próximas marcações</h2>
+        <section className="mt-12">
+          <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+            Próximas marcações
+          </h2>
           {loading ? (
-            <p className="mt-2 text-sm text-[#666]">A carregar…</p>
+            <p className="mt-3 text-sm text-[var(--gray-mid)]">A carregar…</p>
           ) : proximas.length === 0 ? (
-            <p className="mt-2 text-sm text-[#666]">
-              Não tem marcações futuras.{" "}
-              <Link href="/agendar" className="text-[#b76e79] hover:underline">
-                Reservar agora
-              </Link>
-            </p>
+            <div className="card-elevated mt-3 p-6">
+              <p className="text-[var(--gray-dark)]">
+                Não tem marcações futuras.{" "}
+                <Link href="/agendar" className="font-medium text-[var(--rose-gold)] hover:underline">
+                  Reservar agora
+                </Link>
+              </p>
+            </div>
           ) : (
             <ul className="mt-3 space-y-3">
               {proximas.map((m) => (
-                <li
-                  key={m.id}
-                  className="rounded-xl border border-[#eee] bg-white p-4"
-                >
-                  <p className="font-medium text-[#171717]">{m.servicoNome}</p>
-                  <p className="text-sm text-[#666]">
-                    {formatDate(m.data)} · {m.horaInicio} – {m.horaFim} ·{" "}
-                    {m.duracaoMinutos} min
+                <li key={m.id} className="card-elevated p-5">
+                  <p className="font-medium text-[var(--foreground)]">{m.servicoNome}</p>
+                  <p className="mt-1 text-sm text-[var(--gray-dark)]">
+                    {formatDate(m.data)} · {m.horaInicio} – {m.horaFim} · {m.duracaoMinutos} min
                     {m.preco != null && ` · ${m.preco} €`}
                   </p>
                   <span
-                    className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                    className={`mt-2 inline-block rounded-full px-3 py-0.5 text-xs font-medium ${
                       m.status === "confirmada"
-                        ? "bg-green-100 text-green-800"
+                        ? "bg-emerald-100 text-emerald-800"
                         : "bg-amber-100 text-amber-800"
                     }`}
                   >
@@ -145,19 +159,23 @@ export default function ClientePage() {
           )}
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-lg font-medium text-[#171717]">Histórico</h2>
+        <section className="mt-12">
+          <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+            Histórico
+          </h2>
           {!loading && historico.length === 0 ? (
-            <p className="mt-2 text-sm text-[#666]">Ainda não tem sessões no histórico.</p>
+            <p className="mt-3 text-sm text-[var(--gray-mid)]">
+              Ainda não tem sessões no histórico.
+            </p>
           ) : (
             <ul className="mt-3 space-y-3">
               {historico.slice(0, 10).map((m) => (
                 <li
                   key={m.id}
-                  className="rounded-xl border border-[#eee] bg-white p-4 opacity-80"
+                  className="card-elevated p-5 opacity-90"
                 >
-                  <p className="font-medium text-[#171717]">{m.servicoNome}</p>
-                  <p className="text-sm text-[#666]">
+                  <p className="font-medium text-[var(--foreground)]">{m.servicoNome}</p>
+                  <p className="text-sm text-[var(--gray-dark)]">
                     {formatDate(m.data)} · {m.horaInicio} · {m.duracaoMinutos} min
                     {m.preco != null && ` · ${m.preco} €`}
                   </p>

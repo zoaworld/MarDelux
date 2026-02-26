@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AgendarFlow from "@/components/agendar/AgendarFlow";
+import Logo from "@/components/Logo";
 
 export const metadata = {
   title: "Reservar | MarDelux",
@@ -8,32 +9,32 @@ export const metadata = {
 
 export default function AgendarPage() {
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
-      <header className="border-b border-[#eee] bg-white px-4 py-4 md:px-8">
+    <div className="min-h-screen bg-[var(--background)]">
+      <header className="border-b border-[var(--gray-light)] bg-[var(--white)] px-4 py-4 shadow-[var(--shadow-soft)] md:px-8">
         <nav className="mx-auto flex max-w-6xl items-center justify-between">
+          <Logo variant="text" height={40} />
           <Link
             href="/"
-            className="text-xl font-semibold tracking-tight text-[#b76e79] hover:opacity-90"
-          >
-            MarDelux
-          </Link>
-          <Link
-            href="/"
-            className="text-sm text-[#666] hover:text-[#171717]"
+            className="text-sm font-medium text-[var(--gray-dark)] transition hover:text-[var(--rose-gold)]"
           >
             Início
           </Link>
         </nav>
       </header>
 
-      <div className="mx-auto max-w-2xl px-4 py-8 md:py-12">
-        <h1 className="mb-2 text-2xl font-semibold text-[#171717]">
+      <div className="mx-auto max-w-2xl px-4 py-10 md:py-16">
+        <p className="font-display text-sm uppercase tracking-[0.2em] text-[var(--rose-gold)]">
+          Reservar
+        </p>
+        <h1 className="font-display mt-1 text-3xl font-semibold text-[var(--foreground)] md:text-4xl">
           Agendar sessão
         </h1>
-        <p className="mb-8 text-[#666]">
+        <p className="mt-3 text-[var(--gray-dark)]">
           Escolha o serviço, a data e a hora. Confirmamos a reserva por email.
         </p>
-        <AgendarFlow />
+        <div className="mt-8">
+          <AgendarFlow />
+        </div>
       </div>
     </div>
   );

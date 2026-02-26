@@ -7,9 +7,11 @@ import {
   getMarcacoesByDate,
   getSlotsDisponiveis,
   createMarcacao,
+  getHorarioConfig,
 } from "@/lib/firebase";
 import { DEFAULT_SERVICOS } from "@/lib/default-servicos";
 import type { Servico } from "@/types";
+import type { HorarioConfig } from "@/lib/firebase";
 
 const STEPS = ["Serviço", "Data e hora", "Confirmação"] as const;
 
@@ -46,18 +48,22 @@ export default function AgendarFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [horarioConfig, setHorarioConfig] = useState<HorarioConfig | null>(null);
 
   useEffect(() => {
-    getServicos()
-      .then((list) => {
+    let cancelled = false;
+    Promise.all([getHorarioConfig(), getServicos()])
+      .then(([config, list]) => {
+        if (cancelled) return;
+        setHorarioConfig(config);
         if (list.length > 0) setServicos(list);
-        else
-          setServicos(
-            DEFAULT_SERVICOS.map((s, i) => ({ ...s, id: `default-${i}` }))
-          );
+        else setServicos(DEFAULT_SERVICOS.map((s, i) => ({ ...s, id: `default-${i}` })));
       })
-      .catch(() => setServicos(DEFAULT_SERVICOS.map((s, i) => ({ ...s, id: `default-${i}` }))))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) setServicos(DEFAULT_SERVICOS.map((s, i) => ({ ...s, id: `default-${i}` })));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -67,12 +73,12 @@ export default function AgendarFlow() {
     setSelectedHora(null);
     getMarcacoesByDate(selectedData)
       .then((ocupados) => {
-        const disp = getSlotsDisponiveis(selectedServico.duracaoMinutos, ocupados);
+        const disp = getSlotsDisponiveis(selectedData, selectedServico.duracaoMinutos, ocupados, horarioConfig ?? undefined);
         setSlots(disp);
       })
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
-  }, [step, selectedData, selectedServico]);
+  }, [step, selectedData, selectedServico, horarioConfig]);
 
   const handleConfirmar = async () => {
     if (!selectedServico || !selectedData || !selectedHora) return;
@@ -104,20 +110,17 @@ export default function AgendarFlow() {
 
   if (createdId) {
     return (
-      <div className="mx-auto max-w-lg rounded-2xl bg-white p-8 text-center shadow-sm">
-        <div className="text-5xl text-[#b76e79]">✓</div>
-        <h2 className="mt-4 text-xl font-semibold text-[#171717]">
+      <div className="card-elevated mx-auto max-w-lg p-8 text-center">
+        <div className="text-5xl text-[var(--rose-gold)]">✓</div>
+        <h2 className="font-display mt-4 text-xl font-semibold text-[var(--foreground)]">
           Marcação efetuada
         </h2>
-        <p className="mt-2 text-[#666]">
+        <p className="mt-2 text-[var(--gray-dark)]">
           A sua sessão foi registada. Enviaremos um email de confirmação para{" "}
           <strong>{form.email}</strong>.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link
-            href="/"
-            className="rounded-full bg-[#b76e79] px-6 py-2.5 text-sm font-medium text-white transition hover:bg-[#a65d68]"
-          >
+          <Link href="/" className="btn-primary">
             Voltar ao início
           </Link>
           <button
@@ -130,7 +133,7 @@ export default function AgendarFlow() {
               setSelectedHora(null);
               setForm({ nome: "", email: "", telefone: "" });
             }}
-            className="rounded-full border border-[#ddd] px-6 py-2.5 text-sm font-medium text-[#171717] transition hover:bg-[#F5F5F5]"
+            className="btn-secondary"
           >
             Nova marcação
           </button>
@@ -147,12 +150,12 @@ export default function AgendarFlow() {
         {STEPS.map((label, i) => (
           <div
             key={label}
-            className={`flex-1 rounded-lg py-2 text-center text-sm font-medium ${
+            className={`flex-1 rounded-lg py-2 text-center text-sm font-medium transition ${
               i + 1 === step
-                ? "bg-[#b76e79] text-white"
+                ? "bg-[var(--rose-gold)] text-white"
                 : i + 1 < step
-                  ? "bg-[#e8d4d6] text-[#b76e79]"
-                  : "bg-[#F5F5F5] text-[#666]"
+                  ? "bg-[var(--rose-gold-light)] text-[var(--rose-gold)]"
+                  : "bg-[var(--gray-light)] text-[var(--gray-mid)]"
             }`}
           >
             {i + 1}. {label}
@@ -161,12 +164,12 @@ export default function AgendarFlow() {
       </div>
 
       {step === 1 && (
-        <div className="rounded-2xl bg-white p-6 shadow-sm md:p-8">
-          <h2 className="text-lg font-semibold text-[#171717]">
+        <div className="card-elevated p-6 md:p-8">
+          <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
             Escolha o serviço
           </h2>
           {loading ? (
-            <p className="mt-4 text-[#666]">A carregar serviços...</p>
+            <p className="mt-4 text-[var(--gray-mid)]">A carregar serviços...</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {servicos.map((s) => (
@@ -179,15 +182,15 @@ export default function AgendarFlow() {
                     }}
                     className={`w-full rounded-xl border p-4 text-left transition ${
                       selectedServico?.id === s.id
-                        ? "border-[#b76e79] bg-[#fdf8f9]"
-                        : "border-[#eee] hover:border-[#d4a5a5] hover:bg-[#fdf8f9]"
+                        ? "border-[var(--rose-gold)] bg-[var(--rose-gold-light)]"
+                        : "border-[var(--gray-light)] hover:border-[var(--rose-gold)]/50 hover:bg-[var(--rose-gold-light)]/50"
                     }`}
                   >
-                    <span className="font-medium text-[#171717]">{s.nome}</span>
+                    <span className="font-medium text-[var(--foreground)]">{s.nome}</span>
                     {s.descricao && (
-                      <p className="mt-1 text-sm text-[#666]">{s.descricao}</p>
+                      <p className="mt-1 text-sm text-[var(--gray-dark)]">{s.descricao}</p>
                     )}
-                    <p className="mt-2 text-sm text-[#b76e79]">
+                    <p className="mt-2 text-sm text-[var(--rose-gold)]">
                       {s.duracaoMinutos} min · {s.preco} €
                     </p>
                   </button>
@@ -199,22 +202,22 @@ export default function AgendarFlow() {
       )}
 
       {step === 2 && selectedServico && (
-        <div className="rounded-2xl bg-white p-6 shadow-sm md:p-8">
+        <div className="card-elevated p-6 md:p-8">
           <button
             type="button"
             onClick={() => setStep(1)}
-            className="mb-4 text-sm text-[#b76e79] hover:underline"
+            className="mb-4 text-sm text-[var(--rose-gold)] hover:underline"
           >
             ← Alterar serviço
           </button>
-          <h2 className="text-lg font-semibold text-[#171717]">
+          <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
             Data e hora — {selectedServico.nome}
           </h2>
-          <p className="mt-1 text-sm text-[#666]">
-            Horário de funcionamento: 09h–18h (15 min de intervalo entre sessões).
+          <p className="mt-1 text-sm text-[var(--gray-dark)]">
+            O horário pode variar por dia da semana e em feriados. Intervalo entre sessões: {horarioConfig?.bufferMinutes ?? 15} min.
           </p>
 
-          <p className="mt-6 text-sm font-medium text-[#171717]">Data</p>
+          <p className="mt-6 text-sm font-medium text-[var(--foreground)]">Data</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {days.map((d) => (
               <button
@@ -223,8 +226,8 @@ export default function AgendarFlow() {
                 onClick={() => setSelectedData(d)}
                 className={`rounded-lg px-3 py-2 text-sm transition ${
                   selectedData === d
-                    ? "bg-[#b76e79] text-white"
-                    : "bg-[#F5F5F5] text-[#171717] hover:bg-[#eee]"
+                    ? "bg-[var(--rose-gold)] text-white"
+                    : "bg-[var(--gray-light)] text-[var(--foreground)] hover:bg-[var(--gray-mid)]/10"
                 }`}
               >
                 {new Date(d + "T12:00:00").toLocaleDateString("pt-PT", {
@@ -235,15 +238,15 @@ export default function AgendarFlow() {
             ))}
           </div>
 
-          <p className="mt-6 text-sm font-medium text-[#171717]">Hora</p>
+          <p className="mt-6 text-sm font-medium text-[var(--foreground)]">Hora</p>
           {!selectedData ? (
-            <p className="mt-2 text-sm text-[#666]">
+            <p className="mt-2 text-sm text-[var(--gray-dark)]">
               Selecione primeiro uma data.
             </p>
           ) : loadingSlots ? (
-            <p className="mt-2 text-sm text-[#666]">A carregar horários...</p>
+            <p className="mt-2 text-sm text-[var(--gray-dark)]">A carregar horários...</p>
           ) : slots.length === 0 ? (
-            <p className="mt-2 text-sm text-[#666]">
+            <p className="mt-2 text-sm text-[var(--gray-dark)]">
               Sem horários disponíveis neste dia. Escolha outra data.
             </p>
           ) : (
@@ -255,8 +258,8 @@ export default function AgendarFlow() {
                   onClick={() => setSelectedHora(h)}
                   className={`rounded-lg px-3 py-2 text-sm transition ${
                     selectedHora === h
-                      ? "bg-[#b76e79] text-white"
-                      : "bg-[#F5F5F5] text-[#171717] hover:bg-[#eee]"
+                      ? "bg-[var(--rose-gold)] text-white"
+                      : "bg-[var(--gray-light)] text-[var(--foreground)] hover:bg-[var(--gray-mid)]/10"
                   }`}
                 >
                   {h}
@@ -270,7 +273,7 @@ export default function AgendarFlow() {
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="rounded-full bg-[#b76e79] px-6 py-2.5 text-sm font-medium text-white transition hover:bg-[#a65d68]"
+                className="btn-primary"
               >
                 Continuar para confirmação
               </button>
@@ -280,18 +283,18 @@ export default function AgendarFlow() {
       )}
 
       {step === 3 && selectedServico && selectedData && selectedHora && (
-        <div className="rounded-2xl bg-white p-6 shadow-sm md:p-8">
+        <div className="card-elevated p-6 md:p-8">
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="mb-4 text-sm text-[#b76e79] hover:underline"
+            className="mb-4 text-sm text-[var(--rose-gold)] hover:underline"
           >
             ← Alterar data/hora
           </button>
-          <h2 className="text-lg font-semibold text-[#171717]">Confirmação</h2>
-          <div className="mt-4 rounded-xl bg-[#F5F5F5] p-4">
-            <p className="font-medium text-[#171717]">{selectedServico.nome}</p>
-            <p className="text-sm text-[#666]">
+          <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">Confirmação</h2>
+          <div className="mt-4 rounded-xl bg-[var(--gray-light)] p-4">
+            <p className="font-medium text-[var(--foreground)]">{selectedServico.nome}</p>
+            <p className="text-sm text-[var(--gray-dark)]">
               {formatDate(selectedData)} às {selectedHora} ·{" "}
               {selectedServico.duracaoMinutos} min · {selectedServico.preco} €
             </p>
@@ -299,38 +302,38 @@ export default function AgendarFlow() {
 
           <div className="mt-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#171717]">
+              <label className="block text-sm font-medium text-[var(--foreground)]">
                 Nome *
               </label>
               <input
                 type="text"
                 value={form.nome}
                 onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717] focus:border-[#b76e79] focus:outline-none focus:ring-1 focus:ring-[#b76e79]"
+                className="input-elegant mt-1"
                 placeholder="O seu nome"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#171717]">
+              <label className="block text-sm font-medium text-[var(--foreground)]">
                 Email *
               </label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717] focus:border-[#b76e79] focus:outline-none focus:ring-1 focus:ring-[#b76e79]"
+                className="input-elegant mt-1"
                 placeholder="o seu@email.pt"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#171717]">
+              <label className="block text-sm font-medium text-[var(--foreground)]">
                 Telefone
               </label>
               <input
                 type="tel"
                 value={form.telefone}
                 onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717] focus:border-[#b76e79] focus:outline-none focus:ring-1 focus:ring-[#b76e79]"
+                className="input-elegant mt-1"
                 placeholder="Opcional"
               />
             </div>
@@ -345,7 +348,7 @@ export default function AgendarFlow() {
               type="button"
               onClick={handleConfirmar}
               disabled={submitting}
-              className="rounded-full bg-[#b76e79] px-6 py-2.5 text-sm font-medium text-white transition hover:bg-[#a65d68] disabled:opacity-60"
+              className="btn-primary disabled:opacity-60"
             >
               {submitting ? "A guardar…" : "Confirmar marcação"}
             </button>
@@ -353,8 +356,8 @@ export default function AgendarFlow() {
         </div>
       )}
 
-      <p className="mt-6 text-center text-sm text-[#666]">
-        <Link href="/" className="text-[#b76e79] hover:underline">
+      <p className="mt-6 text-center text-sm text-[var(--gray-mid)]">
+        <Link href="/" className="text-[var(--rose-gold)] hover:underline">
           ← Voltar ao início
         </Link>
       </p>

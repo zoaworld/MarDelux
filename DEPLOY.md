@@ -39,21 +39,28 @@ No projeto Vercel (mar-delux):
 O 404 em **www.mardelux.pt** costuma acontecer quando:
 
 - O deploy em produção foi feito a partir de um commit antigo (ex.: “first commit” em vez do código atual), ou
-- O build falhou e a Vercel serviu uma página de falha.
+- O build falhou e a Vercel serviu uma página de falha, ou
+- O **Root Directory** ou o framework estão mal configurados na Vercel.
 
 **Passos:**
 
-1. Confirmar que o código em produção está atualizado:
-   - No GitHub, branch **main** deve ter o último commit (com fluxo de agendamento, Auth, etc.).
-   - Se não tiver, fazer `git push origin main` a partir do teu projeto local.
+1. **Na Vercel → Settings → General**
+   - **Root Directory** deve estar **vazio** (ou `.`). Se estiver preenchido com uma pasta (ex. `app` ou `frontend`), apagar e guardar.
+   - **Framework Preset** deve ser **Next.js**. Se estiver em "Other" ou outro valor, alterar para Next.js (o ficheiro `vercel.json` no projeto já força `"framework": "nextjs"`).
 
-2. Na Vercel:
-   - **Deployments** → escolher o último deployment → **Redeploy** (ou fazer um novo push para `main` para disparar um deploy novo).
-   - Garantir que o deploy é feito a partir da branch **main** e que o **Build Command** é `npm run build` (ou o que a Vercel detetar para Next.js).
+2. **Ver os logs do build**
+   - **Deployments** → abrir o último deployment → **Building**.
+   - Confirmar que o build termina com sucesso (sem erros a vermelho). Se falhar, corrigir o erro (ex.: dependências, Node version) e fazer novo deploy.
 
-3. Depois de configurar as variáveis de ambiente (secção 2), fazer um **Redeploy** para o build usar as novas chaves.
+3. **Testar o URL da Vercel**
+   - Abrir **mar-delux.vercel.app** (ou o URL que a Vercel atribui). Se aí funcionar mas **www.mardelux.pt** der 404, o problema é o domínio (DNS ou domínio não associado ao projeto certo).
 
-Após isto, **www.mardelux.pt** deve servir a aplicação Next.js em vez de 404.
+4. **Confirmar código e redeploy**
+   - No GitHub, a branch **main** deve ter o último commit (incl. `vercel.json` e código da app).
+   - **Deployments** → **Redeploy** do último deployment (ou novo push para `main`).
+   - Garantir que as variáveis de ambiente (secção 2) estão definidas para **Production** antes do redeploy.
+
+Após isto, **www.mardelux.pt** (e o URL \*.vercel.app) deve servir a aplicação Next.js em vez de 404.
 
 ---
 

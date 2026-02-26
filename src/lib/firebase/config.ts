@@ -5,25 +5,29 @@ import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { getAnalytics, type Analytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDNaL89s_SboPpSY02ioaHexYUf1Xf1QvE",
-  authDomain: "mardelux-app.firebaseapp.com",
-  projectId: "mardelux-app",
-  storageBucket: "mardelux-app.firebasestorage.app",
-  messagingSenderId: "440285677582",
-  appId: "1:440285677582:web:54f863260c74cbd39a145f",
-  measurementId: "G-LYHW7PNT8Y",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? "",
 };
 
-// Inicializar Firebase (apenas uma vez)
-const app: FirebaseApp = initializeApp(firebaseConfig);
+const hasValidConfig = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
 
-export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
-export const storage: FirebaseStorage = getStorage(app);
+let app: FirebaseApp | null = null;
+if (hasValidConfig) {
+  app = initializeApp(firebaseConfig);
+}
+
+export const auth: Auth | null = app ? getAuth(app) : null;
+export const db: Firestore | null = app ? getFirestore(app) : null;
+export const storage: FirebaseStorage | null = app ? getStorage(app) : null;
 
 /** Analytics só está disponível no browser (evita erro em SSR) */
 export function getAnalyticsSafe(): Analytics | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !app) return null;
   return getAnalytics(app);
 }
 

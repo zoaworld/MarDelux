@@ -12,6 +12,7 @@ import type { Servico } from "@/types";
 const COLLECTION = "servicos";
 
 export async function getServicos(): Promise<Servico[]> {
+  if (!db) return [];
   const q = query(
     collection(db, COLLECTION),
     where("ativo", "==", true)
@@ -31,6 +32,7 @@ export async function getServicos(): Promise<Servico[]> {
 }
 
 export async function getServicoById(id: string): Promise<Servico | null> {
+  if (!db) return null;
   const ref = doc(db, COLLECTION, id);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;

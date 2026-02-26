@@ -32,6 +32,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u ?? null);
       setLoading(false);
@@ -40,11 +44,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    if (!auth) throw new Error("Firebase não está configurado. Configure as variáveis de ambiente.");
     await signInWithEmailAndPassword(auth, email, password);
   }, []);
 
   const signUp = useCallback(
     async (email: string, password: string, displayName?: string) => {
+      if (!auth) throw new Error("Firebase não está configurado. Configure as variáveis de ambiente.");
       const { user: newUser } = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -57,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    if (!auth) return;
     await firebaseSignOut(auth);
   }, []);
 

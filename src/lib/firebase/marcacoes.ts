@@ -35,6 +35,7 @@ function minutesToTime(m: number): string {
 
 /** Devolve marcações do dia (apenas confirmadas/pendentes para bloquear slots) */
 export async function getMarcacoesByDate(dataStr: string) {
+  if (!db) return [];
   const ref = collection(db, COLLECTION);
   const q = query(
     ref,
@@ -80,6 +81,7 @@ export function getSlotsDisponiveis(
 
 /** Marcações de um cliente pelo email (para área do cliente) */
 export async function getMarcacoesByClienteEmail(clienteEmail: string) {
+  if (!db) return [];
   const ref = collection(db, COLLECTION);
   const q = query(
     ref,
@@ -103,6 +105,7 @@ export async function getMarcacoesByClienteEmail(clienteEmail: string) {
 }
 
 export async function createMarcacao(input: MarcacaoInput): Promise<string> {
+  if (!db) throw new Error("Firebase não está configurado. Configure as variáveis de ambiente.");
   const startMin = timeToMinutes(input.horaInicio);
   const horaFim = minutesToTime(startMin + input.duracaoMinutos);
 

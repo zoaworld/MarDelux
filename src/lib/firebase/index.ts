@@ -1,4 +1,5 @@
 export { app, auth, db, storage, getAnalyticsSafe } from "./config";
+export { invalidate, CACHE_KEYS } from "./cache";
 export {
   getHorarioConfig,
   setHorarioConfig,

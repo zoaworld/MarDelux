@@ -80,7 +80,8 @@ export function getHorarioParaData(dataStr: string, config: HorarioConfig): { st
 
   const dias = config.diasSemana;
   if (dias?.length) {
-    const diaConfig = dias.find((x) => x.diaSemana === diaSemana);
+    // Usar Number() para evitar falha quando Firestore/JSON devolve diaSemana como string
+    const diaConfig = dias.find((x) => Number(x.diaSemana) === diaSemana);
     if (diaConfig?.fechado || !diaConfig) return null;
     return {
       start: parseTimeToMinutes(diaConfig.abre),
@@ -101,13 +102,26 @@ async function fetchHorarioConfig(): Promise<HorarioConfig> {
     const snap = await getDoc(ref);
     if (!snap.exists()) return defaultConfig;
     const d = snap.data();
-    const diasSemana = d.diasSemana as DiaSemanaConfig[] | undefined;
+    const rawDias = d.diasSemana as DiaSemanaConfig[] | undefined;
     const feriados = (d.feriados as FeriadoConfig[] | undefined) ?? [];
+    // Normalizar cada dia: fechado deve ser boolean explícito (Firestore pode omitir false)
+    const diasSemana =
+      Array.isArray(rawDias) && rawDias.length > 0
+        ? [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => {
+            const x = rawDias.find((item) => Number(item.diaSemana) === diaSemana);
+            return {
+              diaSemana,
+              abre: typeof x?.abre === "string" ? x.abre : "09:00",
+              fecha: typeof x?.fecha === "string" ? x.fecha : "18:00",
+              fechado: Boolean(x?.fechado),
+            };
+          })
+        : defaultConfig.diasSemana;
     return {
       startHour: typeof d.startHour === "number" ? d.startHour : defaultConfig.startHour,
       endHour: typeof d.endHour === "number" ? d.endHour : defaultConfig.endHour,
       bufferMinutes: typeof d.bufferMinutes === "number" ? d.bufferMinutes : defaultConfig.bufferMinutes,
-      diasSemana: Array.isArray(diasSemana) && diasSemana.length > 0 ? diasSemana : defaultConfig.diasSemana,
+      diasSemana,
       feriados: Array.isArray(feriados) ? feriados : [],
     };
   } catch {

@@ -45,6 +45,8 @@ No projeto Vercel (mar-delux):
 
 **Firestore:** A app guarda o horário de funcionamento em `config/horario` (campos `startHour`, `endHour`, `bufferMinutes`). Se usares regras de segurança no Firestore, permite leitura/escrita a esta coleção para utilizadores autenticados (ou apenas admin).
 
+6. **Importante – Cloud Firestore API:** Se vires o erro "Cloud Firestore API has not been used... or it is disabled", ativa a API em [Google Cloud Console → Cloud Firestore API](https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=mardelux-app) (Enable). Ou cria a base de dados em Firebase Console → Firestore Database → Create database.
+
 ---
 
 ## 3. Corrigir o 404 em produção
@@ -77,6 +79,30 @@ Após isto, **www.mardelux.pt** (e o URL \*.vercel.app) deve servir a aplicaçã
 
 ---
 
-## 4. Desenvolvimento local
+## 4. Páginas lentas / erros 500 (Próximas marcações, Admin)
+
+Se **Próximas marcações** e as **páginas de Admin** demoram muito a carregar (ou dão erro 500), quase sempre falta configurar o **Firebase Admin** na Vercel:
+
+1. **Vercel** → teu projeto → **Settings** → **Environment Variables**
+2. Confirmar que estas 3 variáveis existem para **Production**:
+   - `FIREBASE_ADMIN_PROJECT_ID` 
+   - `FIREBASE_ADMIN_CLIENT_EMAIL`
+   - `FIREBASE_ADMIN_PRIVATE_KEY`
+
+3. Para obter os valores:
+   - [Firebase Console](https://console.firebase.google.com) → selecionar projeto **mardelux-app** → ⚙️ Project Settings
+   - **Service Accounts** → **Generate new private key**
+   - Abrir o JSON descarregado e copiar:
+     - `project_id` → `FIREBASE_ADMIN_PROJECT_ID`
+     - `client_email` → `FIREBASE_ADMIN_CLIENT_EMAIL`
+     - `private_key` → `FIREBASE_ADMIN_PRIVATE_KEY` (copiar completo, incluindo `-----BEGIN...-----` e `-----END...-----`)
+
+4. **Importante:** na Vercel, ao colar `FIREBASE_ADMIN_PRIVATE_KEY`, o valor pode ter quebras de linha. Se der erro, tenta colar o JSON inteiro e depois editar para conter só o `private_key` com `\n` entre linhas (a Vercel aceita assim).
+
+5. Depois de guardar as variáveis, fazer **Redeploy** (Deployments → ⋮ → Redeploy).
+
+---
+
+## 5. Desenvolvimento local
 
 Copiar `.env.local.example` para `.env.local` e preencher com os valores do Firebase (ou a nova chave após regenerar). Não commitar `.env.local`.

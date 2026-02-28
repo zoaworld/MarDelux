@@ -62,7 +62,12 @@ export default function AdminGuard({
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
-  const [hasCachedSession] = useState(() => getCachedAdmin());
+  // Só ler do sessionStorage após montagem para evitar hydration mismatch (servidor não tem acesso)
+  const [hasCachedSession, setHasCachedSession] = useState<{ email: string } | null>(null);
+
+  useEffect(() => {
+    setHasCachedSession(getCachedAdmin());
+  }, []);
 
   useEffect(() => {
     if (loading) return;

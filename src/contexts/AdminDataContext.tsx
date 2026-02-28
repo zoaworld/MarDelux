@@ -50,9 +50,13 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
       let list: MarcacaoAdmin[];
       const token = await user?.getIdToken?.();
       if (token) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
         const res = await fetch("/api/admin/marcacoes", {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (res.ok) {
           list = (await res.json()) as MarcacaoAdmin[];
         } else {

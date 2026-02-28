@@ -79,9 +79,13 @@ export async function GET(request: NextRequest) {
     setCache(email, list);
     return NextResponse.json(list);
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("[api/cliente/marcacoes]", err);
     return NextResponse.json(
-      { error: "Token inválido ou erro do servidor" },
+      {
+        error: "Token inválido ou erro do servidor",
+        ...(process.env.NODE_ENV === "development" && { debug: msg }),
+      },
       { status: 503 }
     );
   }

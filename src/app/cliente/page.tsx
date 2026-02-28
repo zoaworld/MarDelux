@@ -106,7 +106,7 @@ export default function ClientePage() {
           ? "/api/cliente/marcacoes?nocache=1"
           : "/api/cliente/marcacoes";
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
+        const timeout = setTimeout(() => controller.abort(), 12000);
         try {
           const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },

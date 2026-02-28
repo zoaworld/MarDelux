@@ -34,7 +34,9 @@ function getAdminApp(): App | null {
       }),
     });
     return adminApp;
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[firebase-admin] init failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }

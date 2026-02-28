@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   getServicosAdmin,
   getHorarioConfig,
   setHorarioConfig,
   getSiteConfig,
   setSiteConfig,
+  invalidate,
+  CACHE_KEYS,
   createServico,
   updateServico,
   deleteServico,
@@ -18,16 +21,28 @@ import type { HorarioConfig, DiaSemanaConfig, FeriadoConfig, SiteConfig } from "
 const NOMES_DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function ensureDiasSemana(dias?: DiaSemanaConfig[]): DiaSemanaConfig[] {
-  if (Array.isArray(dias) && dias.length === 7) return dias;
+  if (Array.isArray(dias) && dias.length === 7) {
+    return dias.map((d) => ({
+      diaSemana: Number(d.diaSemana ?? 0),
+      abre: typeof d.abre === "string" ? d.abre : "09:00",
+      fecha: typeof d.fecha === "string" ? d.fecha : "18:00",
+      fechado: Boolean(d.fechado),
+    }));
+  }
   const base = { abre: "09:00", fecha: "18:00", fechado: false };
-  return [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => ({
-    ...base,
-    diaSemana,
-    ...dias?.find((d) => d.diaSemana === diaSemana),
-  }));
+  return [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => {
+    const found = dias?.find((d) => Number(d.diaSemana) === diaSemana);
+    return {
+      ...base,
+      diaSemana,
+      ...found,
+      fechado: found ? Boolean(found.fechado) : false,
+    };
+  });
 }
 
 export default function AdminConfiguracoesPage() {
+  const { user } = useAuth();
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [horario, setHorario] = useState<HorarioConfig | null>(null);
   const [savingHorario, setSavingHorario] = useState(false);
@@ -126,10 +141,26 @@ export default function AdminConfiguracoesPage() {
     }
     setSavingHorario(true);
     try {
-      await setHorarioConfig(horarioForm);
+      const token = await user?.getIdToken?.();
+      if (token) {
+        const res = await fetch("/api/admin/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ type: "horario", ...horarioForm }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? "Erro ao guardar");
+        }
+        invalidate(CACHE_KEYS.horario);
+      } else {
+        await setHorarioConfig(horarioForm);
+      }
       setHorario(horarioForm);
+      alert("Horário guardado com sucesso.");
     } catch (e) {
-      alert("Erro ao guardar. Tente novamente.");
+      console.error("handleSaveHorario", e);
+      alert(e instanceof Error ? e.message : "Erro ao guardar. Tente novamente.");
     } finally {
       setSavingHorario(false);
     }
@@ -162,10 +193,26 @@ export default function AdminConfiguracoesPage() {
   const handleSaveSite = async () => {
     setSavingSite(true);
     try {
-      await setSiteConfig(siteForm);
+      const token = await user?.getIdToken?.();
+      if (token) {
+        const res = await fetch("/api/admin/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ type: "site", ...siteForm }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? "Erro ao guardar");
+        }
+        invalidate(CACHE_KEYS.site);
+      } else {
+        await setSiteConfig(siteForm);
+      }
       setSiteConfigState(siteForm);
+      alert("Configurações guardadas com sucesso.");
     } catch (e) {
-      alert("Erro ao guardar. Tente novamente.");
+      console.error("handleSaveSite", e);
+      alert(e instanceof Error ? e.message : "Erro ao guardar. Tente novamente.");
     } finally {
       setSavingSite(false);
     }
@@ -213,18 +260,44 @@ export default function AdminConfiguracoesPage() {
     }
     setSavingServico(true);
     try {
-      if (editingServicoId === "new") {
-        await createServico(servicoForm);
-        const list = await getServicosAdmin();
-        setServicos(list);
-      } else if (editingServicoId) {
-        await updateServico(editingServicoId, servicoForm);
-        const list = await getServicosAdmin();
-        setServicos(list);
+      const token = await user?.getIdToken?.();
+      if (token) {
+        if (editingServicoId === "new") {
+          const res = await fetch("/api/admin/servicos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ action: "create", servico: servicoForm }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error ?? "Erro ao guardar");
+          }
+        } else if (editingServicoId) {
+          const res = await fetch("/api/admin/servicos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ action: "update", id: editingServicoId, servico: servicoForm }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error ?? "Erro ao guardar");
+          }
+        }
+        invalidate(CACHE_KEYS.servicos);
+        invalidate(CACHE_KEYS.servicosAdmin);
+      } else {
+        if (editingServicoId === "new") {
+          await createServico(servicoForm);
+        } else if (editingServicoId) {
+          await updateServico(editingServicoId, servicoForm);
+        }
       }
+      const list = await getServicosAdmin();
+      setServicos(list);
       closeServicoForm();
+      alert("Serviço guardado com sucesso.");
     } catch (e) {
-      alert("Erro ao guardar serviço. Tente novamente.");
+      alert(e instanceof Error ? e.message : "Erro ao guardar serviço. Tente novamente.");
     } finally {
       setSavingServico(false);
     }
@@ -234,12 +307,27 @@ export default function AdminConfiguracoesPage() {
     if (!confirm("Desativar este serviço? Deixará de aparecer na lista pública.")) return;
     setDeletingId(id);
     try {
-      await deleteServico(id);
+      const token = await user?.getIdToken?.();
+      if (token) {
+        const res = await fetch("/api/admin/servicos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ action: "delete", id }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? "Erro ao desativar");
+        }
+        invalidate(CACHE_KEYS.servicos);
+        invalidate(CACHE_KEYS.servicosAdmin);
+      } else {
+        await deleteServico(id);
+      }
       const list = await getServicosAdmin();
       setServicos(list);
       if (editingServicoId === id) closeServicoForm();
     } catch (e) {
-      alert("Erro ao desativar. Tente novamente.");
+      alert(e instanceof Error ? e.message : "Erro ao desativar. Tente novamente.");
     } finally {
       setDeletingId(null);
     }

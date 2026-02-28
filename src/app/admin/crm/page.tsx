@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { getAllMarcacoes, updateMarcacao } from "@/lib/firebase";
+import { useAdminData } from "@/contexts/AdminDataContext";
+import { CRMSkeleton } from "@/components/admin/AdminSkeleton";
 
 function formatDate(str: string) {
   return new Date(str + "T12:00:00").toLocaleDateString("pt-PT", {
@@ -12,33 +13,10 @@ function formatDate(str: string) {
   });
 }
 
-type MarcacaoItem = {
-  id: string;
-  clienteEmail: string;
-  clienteNome: string;
-  clienteTelefone?: string;
-  servicoNome: string;
-  data: string;
-  horaInicio: string;
-  status: string;
-  preco: number;
-  notasSessao?: string;
-};
-
 export default function AdminCRMPage() {
-  const [marcacoes, setMarcacoes] = useState<MarcacaoItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { marcacoes, loading, updateMarcacaoNotas } = useAdminData();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [editingNotas, setEditingNotas] = useState<{ id: string; value: string } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getAllMarcacoes()
-      .then((list) => { if (!cancelled) setMarcacoes(list); })
-      .catch(() => { if (!cancelled) setMarcacoes([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
 
   const clients = Array.from(
     new Map(
@@ -66,12 +44,7 @@ export default function AdminCRMPage() {
   const saveNotas = async () => {
     if (!editingNotas) return;
     try {
-      await updateMarcacao(editingNotas.id, { notasSessao: editingNotas.value || undefined });
-      setMarcacoes((prev) =>
-        prev.map((m) =>
-          m.id === editingNotas.id ? { ...m, notasSessao: editingNotas.value } : m
-        )
-      );
+      await updateMarcacaoNotas(editingNotas.id, editingNotas.value || undefined);
       setEditingNotas(null);
     } catch {
       setEditingNotas(null);
@@ -88,7 +61,7 @@ export default function AdminCRMPage() {
       </div>
 
       {loading ? (
-        <p className="text-[#666]">A carregar…</p>
+        <CRMSkeleton />
       ) : (
         <div className="flex flex-col gap-6 lg:flex-row">
           <aside className="w-full rounded-xl bg-white p-4 shadow-sm lg:w-72">

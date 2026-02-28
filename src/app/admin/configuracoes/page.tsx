@@ -30,7 +30,6 @@ function ensureDiasSemana(dias?: DiaSemanaConfig[]): DiaSemanaConfig[] {
 export default function AdminConfiguracoesPage() {
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [horario, setHorario] = useState<HorarioConfig | null>(null);
-  const [loading, setLoading] = useState(true);
   const [savingHorario, setSavingHorario] = useState(false);
   const [horarioForm, setHorarioForm] = useState<HorarioConfig>({
     bufferMinutes: 15,
@@ -70,10 +69,15 @@ export default function AdminConfiguracoesPage() {
   const [savingServico, setSavingServico] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Carregamento progressivo — cada secção carrega independentemente
+  const [loadingHorario, setLoadingHorario] = useState(true);
+  const [loadingSite, setLoadingSite] = useState(true);
+  const [loadingServicos, setLoadingServicos] = useState(true);
+
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getHorarioConfig(), getServicosAdmin(), getSiteConfig()])
-      .then(([h, list, site]) => {
+    getHorarioConfig()
+      .then((h) => {
         if (cancelled) return;
         setHorario(h);
         setHorarioForm({
@@ -82,12 +86,31 @@ export default function AdminConfiguracoesPage() {
           diasSemana: ensureDiasSemana(h.diasSemana),
           feriados: Array.isArray(h.feriados) ? h.feriados : [],
         });
-        setServicos(list);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingHorario(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSiteConfig()
+      .then((site) => {
+        if (cancelled) return;
         setSiteConfigState(site);
         setSiteForm(site);
       })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingSite(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getServicosAdmin()
+      .then((list) => { if (!cancelled) setServicos(list); })
       .catch(() => { if (!cancelled) setServicos([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) setLoadingServicos(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -230,15 +253,16 @@ export default function AdminConfiguracoesPage() {
         </Link>
       </div>
 
-      {loading ? (
-        <p className="text-[#666]">A carregar…</p>
-      ) : (
-        <div className="space-y-8">
+      <div className="space-y-8">
           {/* Geral / Site */}
           <section className="rounded-xl bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-medium text-[#171717]">
               Geral — Nome e contacto
             </h2>
+            {loadingSite ? (
+              <p className="text-[#666]">A carregar…</p>
+            ) : (
+            <>
             <p className="mb-4 text-sm text-[#666]">
               Dados do negócio para uso no site (rodapé, contactos, etc.).
             </p>
@@ -284,6 +308,8 @@ export default function AdminConfiguracoesPage() {
                 {savingSite ? "A guardar…" : "Guardar"}
               </button>
             </div>
+            </>
+            )}
           </section>
 
           {/* Horário de funcionamento */}
@@ -291,6 +317,10 @@ export default function AdminConfiguracoesPage() {
             <h2 className="mb-4 text-lg font-medium text-[#171717]">
               Horário de funcionamento
             </h2>
+            {loadingHorario ? (
+              <p className="text-[#666]">A carregar…</p>
+            ) : (
+            <>
             <p className="mb-4 text-sm text-[#666]">
               Defina em que dias abre e o horário de cada dia. Buffer entre sessões: intervalo mínimo entre o fim de uma e o início da seguinte.
             </p>
@@ -422,10 +452,16 @@ export default function AdminConfiguracoesPage() {
                 {savingHorario ? "A guardar…" : "Guardar horário"}
               </button>
             </div>
+            </>
+            )}
           </section>
 
           {/* Serviços e preços */}
           <section className="rounded-xl bg-white p-6 shadow-sm">
+            {loadingServicos ? (
+              <p className="text-[#666]">A carregar…</p>
+            ) : (
+            <>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-medium text-[#171717]">
                 Serviços e preços
@@ -639,9 +675,10 @@ export default function AdminConfiguracoesPage() {
                 </div>
               </div>
             )}
+            </>
+            )}
           </section>
         </div>
-      )}
     </div>
   );
 }

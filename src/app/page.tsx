@@ -21,7 +21,10 @@ export default function Home() {
       {/* Header */}
       <header className="fixed left-0 right-0 top-0 z-50 border-b border-[var(--gray-light)]/80 bg-[var(--background)]/95 backdrop-blur-md">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 md:px-8">
-          <Logo variant="text" height={44} priority />
+          <Link href="/" className="inline-flex items-center gap-2 hover:opacity-90 transition-opacity">
+            <Logo variant="lotus" height={44} linkToHome={false} priority />
+            <Logo variant="text" height={44} linkToHome={false} priority />
+          </Link>
           <div className="flex items-center gap-6">
             <HeaderAdminLink />
             <Link
@@ -164,8 +167,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="border-t border-[var(--gray-light)] bg-[var(--white)] px-4 py-12 md:px-8">
-          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 md:flex-row">
-            <Logo variant="text" height={36} />
+          <div className="mx-auto flex max-w-6xl justify-center">
             <div className="flex gap-8 text-sm text-[var(--gray-mid)]">
               <Link href="/agendar" className="hover:text-[var(--rose-gold)]">
                 Reservar

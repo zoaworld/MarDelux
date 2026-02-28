@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AdminGuard from "@/components/admin/AdminGuard";
+import { AdminDataProvider } from "@/contexts/AdminDataContext";
 import Logo from "@/components/Logo";
 
 const NAV = [
@@ -18,10 +19,11 @@ export default function AdminLayout({
   const pathname = usePathname();
   return (
     <AdminGuard>
+      <AdminDataProvider>
       <div className="min-h-screen bg-[var(--background)]">
         <aside className="fixed left-0 top-0 z-10 h-full w-56 border-r border-[var(--gray-light)] bg-[var(--white)] p-5 shadow-[var(--shadow-soft)]">
           <Link href="/admin" className="flex items-center gap-2 text-[var(--rose-gold)] hover:opacity-90">
-            <Logo variant="text" height={28} linkToHome={false} />
+            <Logo variant="lotus" height={40} linkToHome={false} />
             <span className="text-sm font-medium">Admin</span>
           </Link>
           <nav className="mt-6 flex flex-col gap-1 text-sm">
@@ -41,6 +43,7 @@ export default function AdminLayout({
         </aside>
         <main className="pl-56 p-8">{children}</main>
       </div>
+      </AdminDataProvider>
     </AdminGuard>
   );
 }

@@ -11,7 +11,7 @@ import {
 import { db } from "./config";
 import { BUFFER_TIME_MINUTES } from "@/lib/constants";
 import { getHorarioParaData, type HorarioConfig } from "./app-settings";
-import { getCached, invalidate, CACHE_KEYS, CACHE_TTL } from "./cache";
+import { getCached, invalidate, CACHE_KEYS, CACHE_TTL, getCacheKeyForEmail } from "./cache";
 
 const COLLECTION = "marcacoes";
 
@@ -158,8 +158,7 @@ export async function updateMarcacao(
   invalidate(CACHE_KEYS.marcacoes);
 }
 
-/** Marcações de um cliente pelo email (para área do cliente) */
-export async function getMarcacoesByClienteEmail(clienteEmail: string) {
+async function fetchMarcacoesByClienteEmail(clienteEmail: string) {
   if (!db) return [];
   const ref = collection(db, COLLECTION);
   const q = query(
@@ -183,6 +182,12 @@ export async function getMarcacoesByClienteEmail(clienteEmail: string) {
   });
 }
 
+/** Marcações de um cliente pelo email (para área do cliente) – com cache 2 min */
+export async function getMarcacoesByClienteEmail(clienteEmail: string) {
+  const key = getCacheKeyForEmail(clienteEmail);
+  return getCached(key, 2 * 60 * 1000, () => fetchMarcacoesByClienteEmail(clienteEmail));
+}
+
 export async function createMarcacao(input: MarcacaoInput): Promise<string> {
   if (!db) throw new Error("Firebase não está configurado. Configure as variáveis de ambiente.");
   const startMin = timeToMinutes(input.horaInicio);
@@ -204,5 +209,6 @@ export async function createMarcacao(input: MarcacaoInput): Promise<string> {
     updatedAt: Timestamp.now(),
   });
   invalidate(CACHE_KEYS.marcacoes);
+  invalidate(getCacheKeyForEmail(input.clienteEmail));
   return docRef.id;
 }

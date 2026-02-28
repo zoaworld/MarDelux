@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,20 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
+
+const CACHE_KEY = "mardelux_cliente_marcacoes";
+const CACHE_TTL_MS = 90 * 1000; // 1.5 min – cache local para repeat visits
+
+type MarcacaoCliente = {
+  id: string;
+  servicoNome: string;
+  data: string;
+  horaInicio: string;
+  horaFim: string;
+  status: string;
+  duracaoMinutos: number;
+  preco?: number;
+};
 
 function isAdmin(email: string | undefined): boolean {
   if (!email) return false;
@@ -25,38 +39,118 @@ function formatDate(str: string): string {
   });
 }
 
+function getCachedMarcacoes(email: string): MarcacaoCliente[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(`${CACHE_KEY}:${email}`);
+    if (!raw) return null;
+    const { data, expires } = JSON.parse(raw) as { data: MarcacaoCliente[]; expires: number };
+    if (!Array.isArray(data) || Date.now() > expires) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedMarcacoes(email: string, data: MarcacaoCliente[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      `${CACHE_KEY}:${email}`,
+      JSON.stringify({ data, expires: Date.now() + CACHE_TTL_MS })
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function ClientePage() {
   const router = useRouter();
   const { user, loading: authLoading, signOut } = useAuth();
-  const [marcacoes, setMarcacoes] = useState<
-    Array<{
-      id: string;
-      servicoNome: string;
-      data: string;
-      horaInicio: string;
-      horaFim: string;
-      status: string;
-      duracaoMinutos: number;
-      preco?: number;
-    }>
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const [marcacoes, setMarcacoes] = useState<MarcacaoCliente[]>(() =>
+    user?.email ? getCachedMarcacoes(user.email) ?? [] : []
+  );
+  const [loading, setLoading] = useState(!user?.email);
+
+  const fetchMarcacoes = useCallback(async (email: string, authUser: { getIdToken: () => Promise<string> } | null, forceRefresh?: boolean) => {
+    const cached = !forceRefresh ? getCachedMarcacoes(email) : null;
+    if (cached !== null) {
+      setMarcacoes(cached);
+      setLoading(false);
+      // Atualizar em background para garantir dados frescos
+      void (async () => {
+        try {
+          const token = await authUser?.getIdToken?.();
+          if (!token) return;
+          const res = await fetch("/api/cliente/marcacoes", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) return;
+          const list = (await res.json()) as MarcacaoCliente[];
+          setMarcacoes(list);
+          setCachedMarcacoes(email, list);
+        } catch {
+          /* ignore background refresh */
+        }
+      })();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = await authUser?.getIdToken?.();
+      let list: MarcacaoCliente[] = [];
+
+      if (token) {
+        const url = forceRefresh
+          ? "/api/cliente/marcacoes?nocache=1"
+          : "/api/cliente/marcacoes";
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          list = (await res.json()) as MarcacaoCliente[];
+        } else {
+          throw new Error("API error");
+        }
+      } else {
+        const firestoreList = await getMarcacoesByClienteEmail(email);
+        list = firestoreList as MarcacaoCliente[];
+      }
+
+      const sorted = [...list].sort(
+        (a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)
+      );
+      setMarcacoes(sorted);
+      setCachedMarcacoes(email, sorted);
+    } catch {
+      try {
+        const firestoreList = await getMarcacoesByClienteEmail(email);
+        const sorted = [...firestoreList].sort(
+          (a, b) => (a.data as string).localeCompare(b.data as string) || (a.horaInicio as string).localeCompare(b.horaInicio as string)
+        ) as MarcacaoCliente[];
+        setMarcacoes(sorted);
+        setCachedMarcacoes(email, sorted);
+      } catch {
+        setMarcacoes([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user?.email) {
       setLoading(false);
       return;
     }
-    getMarcacoesByClienteEmail(user.email)
-      .then((list) => {
-        const sorted = [...list].sort(
-          (a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)
-        );
-        setMarcacoes(sorted);
-      })
-      .catch(() => setMarcacoes([]))
-      .finally(() => setLoading(false));
-  }, [user?.email]);
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const forceRefresh = params?.get("fresh") === "1";
+    if (forceRefresh && typeof window !== "undefined") {
+      window.history.replaceState({}, "", "/cliente");
+    }
+    fetchMarcacoes(user.email, user, forceRefresh);
+  }, [user?.email, user, fetchMarcacoes]);
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/login");

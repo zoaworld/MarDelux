@@ -6,9 +6,9 @@ import Image from "next/image";
 type LogoVariant = "full" | "text" | "lotus";
 
 const LOGO = {
-  full: { src: "/logo/logo-completo.png", width: 160, height: 52 },
-  text: { src: "/logo/logo-texto.png", width: 140, height: 40 },
-  lotus: { src: "/logo/logo-lotus.png", width: 48, height: 48 },
+  full: { src: "/logo/logo-completo.svg", width: 160, height: 52 },
+  text: { src: "/logo/logo-texto.svg", width: 140, height: 40 },
+  lotus: { src: "/logo/logo-lotus.svg", width: 48, height: 48 },
 } as const;
 
 type LogoProps = {
@@ -40,6 +40,7 @@ export default function Logo({
       height={h}
       className={`object-contain ${className}`}
       priority={priority}
+      unoptimized={cfg.src.endsWith(".svg")}
     />
   );
 

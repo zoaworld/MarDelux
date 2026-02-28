@@ -120,7 +120,10 @@ export default function AgendarFlow() {
           <strong>{form.email}</strong>.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link href="/" className="btn-primary">
+          <Link href="/cliente?fresh=1" className="btn-primary">
+            Ver as minhas marcações
+          </Link>
+          <Link href="/" className="btn-secondary">
             Voltar ao início
           </Link>
           <button

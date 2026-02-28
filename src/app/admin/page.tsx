@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { getAllMarcacoes, updateMarcacao } from "@/lib/firebase";
+import { useAdminData } from "@/contexts/AdminDataContext";
+import { TableSkeleton, CardsSkeleton } from "@/components/admin/AdminSkeleton";
 
 function formatDate(str: string) {
   return new Date(str + "T12:00:00").toLocaleDateString("pt-PT", {
@@ -20,31 +21,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminAgendaPage() {
-  const [marcacoes, setMarcacoes] = useState<
-    Array<{
-      id: string;
-      clienteNome: string;
-      clienteEmail: string;
-      clienteTelefone?: string;
-      servicoNome: string;
-      data: string;
-      horaInicio: string;
-      horaFim: string;
-      status: string;
-      preco: number;
-      notasSessao?: string;
-    }>
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const { marcacoes, loading, updateMarcacaoStatus } = useAdminData();
   const [filterData, setFilterData] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-
-  useEffect(() => {
-    getAllMarcacoes()
-      .then((list) => setMarcacoes(list))
-      .catch(() => setMarcacoes([]))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filtered = marcacoes.filter((m) => {
     if (filterData && m.data !== filterData) return false;
@@ -62,17 +41,6 @@ export default function AdminAgendaPage() {
     return d >= today && d < weekEnd.toISOString().slice(0, 10);
   }).length;
 
-  const handleStatusChange = async (id: string, status: string) => {
-    try {
-      await updateMarcacao(id, { status });
-      setMarcacoes((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, status } : m))
-      );
-    } catch {
-      // ignore
-    }
-  };
-
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -86,14 +54,20 @@ export default function AdminAgendaPage() {
       </div>
 
       <div className="mb-6 flex flex-wrap gap-4 rounded-xl bg-white p-4 shadow-sm">
-        <div className="rounded-lg border border-[#eee] px-4 py-2">
-          <span className="text-xs text-[#666]">Hoje</span>
-          <p className="text-lg font-semibold text-[#171717]">{todayCount} marcações</p>
-        </div>
-        <div className="rounded-lg border border-[#eee] px-4 py-2">
-          <span className="text-xs text-[#666]">Próximos 7 dias</span>
-          <p className="text-lg font-semibold text-[#171717]">{weekCount} marcações</p>
-        </div>
+        {loading ? (
+          <CardsSkeleton />
+        ) : (
+          <>
+            <div className="rounded-lg border border-[#eee] px-4 py-2">
+              <span className="text-xs text-[#666]">Hoje</span>
+              <p className="text-lg font-semibold text-[#171717]">{todayCount} marcações</p>
+            </div>
+            <div className="rounded-lg border border-[#eee] px-4 py-2">
+              <span className="text-xs text-[#666]">Próximos 7 dias</span>
+              <p className="text-lg font-semibold text-[#171717]">{weekCount} marcações</p>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mb-6 flex flex-wrap gap-4">
@@ -116,7 +90,7 @@ export default function AdminAgendaPage() {
       </div>
 
       {loading ? (
-        <p className="text-[#666]">A carregar…</p>
+        <TableSkeleton rows={8} />
       ) : filtered.length === 0 ? (
         <p className="rounded-xl bg-white p-6 text-[#666] shadow-sm">
           Nenhuma marcação encontrada.
@@ -167,14 +141,14 @@ export default function AdminAgendaPage() {
                       <>
                         <button
                           type="button"
-                          onClick={() => handleStatusChange(m.id, "confirmada")}
+                          onClick={() => updateMarcacaoStatus(m.id, "confirmada")}
                           className="mr-2 text-[#b76e79] hover:underline"
                         >
                           Confirmar
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleStatusChange(m.id, "cancelada")}
+                          onClick={() => updateMarcacaoStatus(m.id, "cancelada")}
                           className="text-red-600 hover:underline"
                         >
                           Cancelar
@@ -183,8 +157,8 @@ export default function AdminAgendaPage() {
                     )}
                     {m.status === "confirmada" && (
                       <button
-                        type="button"
-                        onClick={() => handleStatusChange(m.id, "concluida")}
+                          type="button"
+                          onClick={() => updateMarcacaoStatus(m.id, "concluida")}
                         className="text-[#b76e79] hover:underline"
                       >
                         Marcar concluída

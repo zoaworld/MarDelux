@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+
+const CACHE_KEY = "mardelux_admin_verified";
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min
 
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
   .split(",")
@@ -15,6 +18,42 @@ function isAdmin(email: string | undefined): boolean {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
+function getCachedAdmin(): { email: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { email, verifiedAt } = JSON.parse(raw) as { email: string; verifiedAt: number };
+    if (!email || typeof verifiedAt !== "number") return null;
+    if (Date.now() - verifiedAt > CACHE_TTL_MS) return null;
+    if (!ADMIN_EMAILS.includes(email.toLowerCase())) return null;
+    return { email };
+  } catch {
+    return null;
+  }
+}
+
+function setCachedAdmin(email: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ email, verifiedAt: Date.now() })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function clearCachedAdmin(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export default function AdminGuard({
   children,
 }: {
@@ -23,24 +62,37 @@ export default function AdminGuard({
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
+  const [hasCachedSession] = useState(() => getCachedAdmin());
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
+      clearCachedAdmin();
       router.replace(`/login?redirect=${encodeURIComponent(pathname ?? "/admin")}`);
       return;
     }
     if (!isAdmin(user.email ?? undefined)) {
-      // não redirecionar, mostrar mensagem
+      clearCachedAdmin();
+      return;
     }
+    setCachedAdmin(user.email ?? "");
   }, [loading, user, router, pathname]);
 
-  if (loading) {
+  // Se temos cache válido e ainda estamos a carregar, mostramos o painel imediatamente
+  const showOptimistically = loading && hasCachedSession;
+
+  if (loading && !showOptimistically) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F5F5F5]">
-        <p className="text-[#666]">A verificar acesso…</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#F5F5F5]">
+        <div className="h-10 w-10 animate-pulse rounded-full bg-[#ddd]" />
+        <p className="text-sm text-[#666]">A verificar acesso…</p>
       </div>
     );
+  }
+
+  // Firebase ainda a carregar, mas temos sessão em cache — mostramos o painel
+  if (showOptimistically) {
+    return <>{children}</>;
   }
 
   if (!user) {

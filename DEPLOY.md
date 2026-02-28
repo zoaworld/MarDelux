@@ -33,7 +33,15 @@ No projeto Vercel (mar-delux):
 3. **Opcional – painel admin:** para restringir `/admin` a certos emails, adicionar:
    - `NEXT_PUBLIC_ADMIN_EMAILS` = lista de emails separados por vírgula (ex.: `admin@mardelux.pt,outro@email.pt`). Quem não estiver na lista vê "Acesso reservado ao administrador".
 
-4. Guardar. Os valores ficam em segredo e não aparecem no repositório.
+4. **Importante – marcações cliente mais rápidas:** para que a secção "Próximas marcações" na área do cliente carregue sem demora, configurar o Firebase Admin (API server-side):
+   - Ir a [Firebase Console](https://console.firebase.google.com) → Project Settings → Service Accounts → **Generate new private key**
+   - Do JSON descarregado, copiar `project_id`, `client_email` e `private_key` para estas variáveis:
+   - `FIREBASE_ADMIN_PROJECT_ID` = valor de `project_id` (ou usar `NEXT_PUBLIC_FIREBASE_PROJECT_ID` que já tens)
+   - `FIREBASE_ADMIN_CLIENT_EMAIL` = valor de `client_email`
+   - `FIREBASE_ADMIN_PRIVATE_KEY` = valor de `private_key` (copiar tal qual, incluindo `-----BEGIN...-----`)
+   - Sem isto, a app usa Firestore directo do browser (mais lento); com isto, as marcações são buscadas pelo servidor (API) e respondem muito mais rápido.
+
+5. Guardar. Os valores ficam em segredo e não aparecem no repositório.
 
 **Firestore:** A app guarda o horário de funcionamento em `config/horario` (campos `startHour`, `endHour`, `bufferMinutes`). Se usares regras de segurança no Firestore, permite leitura/escrita a esta coleção para utilizadores autenticados (ou apenas admin).
 

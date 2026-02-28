@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getAllMarcacoes } from "@/lib/firebase";
+import { useAdminData } from "@/contexts/AdminDataContext";
+import { FinanceiroSkeleton } from "@/components/admin/AdminSkeleton";
 
 function formatMonth(str: string) {
   return new Date(str + "-01").toLocaleDateString("pt-PT", {
@@ -12,17 +12,7 @@ function formatMonth(str: string) {
 }
 
 export default function AdminFinanceiroPage() {
-  const [marcacoes, setMarcacoes] = useState<
-    Array<{ data: string; preco: number; status: string }>
-  >([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getAllMarcacoes()
-      .then((list) => setMarcacoes(list))
-      .catch(() => setMarcacoes([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const { marcacoes, loading } = useAdminData();
 
   const concluidas = marcacoes.filter(
     (m) => m.status === "concluida" || m.status === "confirmada"
@@ -53,7 +43,7 @@ export default function AdminFinanceiroPage() {
       </div>
 
       {loading ? (
-        <p className="text-[#666]">A carregar…</p>
+        <FinanceiroSkeleton />
       ) : (
         <>
           <div className="mb-8 rounded-xl bg-[#b76e79] p-6 text-white shadow-sm">

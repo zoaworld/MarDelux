@@ -134,8 +134,7 @@ export async function setHorarioConfig(config: HorarioConfig): Promise<void> {
   invalidate(CACHE_KEYS.horario);
 }
 
-/** Obtém configuração geral do site (nome, contacto) */
-export async function getSiteConfig(): Promise<SiteConfig> {
+async function fetchSiteConfig(): Promise<SiteConfig> {
   if (!db) return {};
   try {
     const ref = doc(db, CONFIG_COLLECTION, SITE_DOC_ID);
@@ -152,6 +151,11 @@ export async function getSiteConfig(): Promise<SiteConfig> {
   }
 }
 
+/** Obtém configuração geral do site (nome, contacto) — com cache 2 min */
+export async function getSiteConfig(): Promise<SiteConfig> {
+  return getCached(CACHE_KEYS.site, CACHE_TTL.config, fetchSiteConfig);
+}
+
 /** Guarda configuração geral do site */
 export async function setSiteConfig(config: SiteConfig): Promise<void> {
   if (!db) throw new Error("Firebase não está configurado.");
@@ -161,4 +165,5 @@ export async function setSiteConfig(config: SiteConfig): Promise<void> {
     email: config.email ?? "",
     telefone: config.telefone ?? "",
   });
+  invalidate(CACHE_KEYS.site);
 }

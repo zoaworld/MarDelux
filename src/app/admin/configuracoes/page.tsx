@@ -68,6 +68,7 @@ export default function AdminConfiguracoesPage() {
   const [filterCategoria, setFilterCategoria] = useState<string>("");
   const [savingServico, setSavingServico] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
 
   // Carregamento progressivo — cada secção carrega independentemente
   const [loadingHorario, setLoadingHorario] = useState(true);
@@ -512,10 +513,17 @@ export default function AdminConfiguracoesPage() {
                     key={s.id}
                     className={`flex items-center gap-4 rounded-lg border p-3 ${s.ativo ? "border-[#eee] bg-white" : "border-[#eee] bg-[#fafafa] opacity-75"} ${s.destaque ? "ring-1 ring-[#b76e79]" : ""}`}
                   >
-                    {s.imagemUrl ? (
-                      <img src={s.imagemUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                    {s.imagemUrl && !failedImageIds.has(s.id) ? (
+                      <img
+                        src={s.imagemUrl}
+                        alt=""
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                        onError={() => setFailedImageIds((prev) => new Set(prev).add(s.id))}
+                      />
                     ) : (
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#f0f0f0] text-xs text-[#999]">Sem imagem</div>
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#f0f0f0] text-xs text-[#999]">
+                        Sem imagem
+                      </div>
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-[#171717]">

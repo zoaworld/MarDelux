@@ -105,13 +105,22 @@ export default function ClientePage() {
         const url = forceRefresh
           ? "/api/cliente/marcacoes?nocache=1"
           : "/api/cliente/marcacoes";
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          list = (await res.json()) as MarcacaoCliente[];
-        } else {
-          throw new Error("API error");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        try {
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (res.ok) {
+            list = (await res.json()) as MarcacaoCliente[];
+          } else {
+            throw new Error("API error");
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          throw fetchErr;
         }
       } else {
         const firestoreList = await getMarcacoesByClienteEmail(email);

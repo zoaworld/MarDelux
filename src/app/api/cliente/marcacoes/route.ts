@@ -21,25 +21,24 @@ function setCache(email: string, data: unknown[]) {
 }
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  const nocache = request.nextUrl.searchParams.get("nocache") === "1";
-
-  if (!token) {
-    return NextResponse.json({ error: "Token em falta" }, { status: 401 });
-  }
-
-  const adminAuth = getAdminAuth();
-  const adminDb = getAdminFirestore();
-
-  if (!adminAuth || !adminDb) {
-    return NextResponse.json(
-      { error: "Servidor não configurado (Firebase Admin)" },
-      { status: 503 }
-    );
-  }
-
   try {
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const nocache = request.nextUrl.searchParams.get("nocache") === "1";
+
+    if (!token) {
+      return NextResponse.json({ error: "Token em falta" }, { status: 401 });
+    }
+
+    const adminAuth = getAdminAuth();
+    const adminDb = getAdminFirestore();
+
+    if (!adminAuth || !adminDb) {
+      return NextResponse.json(
+        { error: "Servidor não configurado (Firebase Admin)" },
+        { status: 503 }
+      );
+    }
     const decoded = await adminAuth.verifyIdToken(token);
     const email = decoded.email;
     if (!email) {
@@ -82,8 +81,8 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("[api/cliente/marcacoes]", err);
     return NextResponse.json(
-      { error: "Token inválido ou expirado" },
-      { status: 401 }
+      { error: "Token inválido ou erro do servidor" },
+      { status: 503 }
     );
   }
 }

@@ -68,7 +68,9 @@ function CheckoutContent() {
           Confirme o seu pedido
         </h1>
         <p className="mt-2 text-[var(--gray-dark)]">
-          Pagamento em breve via Stripe.
+          {tipo === "pack"
+            ? "Reserve as suas sessões em Agendar e pague por MB Way."
+            : "Pode pagar por MB Way ao reservar a sua sessão."}
         </p>
 
         <div className="card-elevated mt-8 p-6">
@@ -81,17 +83,16 @@ function CheckoutContent() {
           </p>
         </div>
 
-        <div className="mt-6 rounded-xl border border-amber-200/80 bg-amber-50/80 p-6">
+        <div className="mt-6 rounded-xl border border-emerald-200/80 bg-emerald-50/80 p-6">
           <h2 className="font-display font-medium text-[var(--foreground)]">
-            Pagamento (em breve)
+            Pagamento por MB Way
           </h2>
           <p className="mt-2 text-sm text-[var(--gray-dark)]">
-            A integração com Stripe para pagamento seguro está prevista em breve.
-            Por agora, pode reservar a sua sessão em{" "}
+            Reserve {tipo === "pack" ? "as suas sessões" : "a sua sessão"} em{" "}
             <Link href="/agendar" className="font-medium text-[var(--rose-gold)] hover:underline">
               Agendar
             </Link>{" "}
-            e combinar o pagamento no local.
+            e pague de forma segura por MB Way.
           </p>
         </div>
 

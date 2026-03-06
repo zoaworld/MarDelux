@@ -62,7 +62,11 @@ export default function ClienteServicosPage() {
           Serviços e packs
         </h1>
         <p className="mt-2 text-[var(--gray-dark)]">
-          Compre sessões avulso ou packs com desconto. O pagamento será processado em breve via Stripe.
+          Compre sessões avulso ou packs com desconto. Pode pagar por MB Way ao reservar em{" "}
+          <Link href="/agendar" className="font-medium text-[var(--rose-gold)] hover:underline">
+            Agendar
+          </Link>
+          .
         </p>
 
         <section className="mt-10">

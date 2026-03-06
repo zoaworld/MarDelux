@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -14,7 +14,9 @@ import {
   createServico,
   updateServico,
   deleteServico,
+  storage,
 } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { Servico } from "@/types";
 import type { HorarioConfig, DiaSemanaConfig, FeriadoConfig, SiteConfig } from "@/lib/firebase/app-settings";
 
@@ -84,11 +86,15 @@ export default function AdminConfiguracoesPage() {
   const [savingServico, setSavingServico] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadImageError, setUploadImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carregamento progressivo — cada secção carrega independentemente
   const [loadingHorario, setLoadingHorario] = useState(true);
   const [loadingSite, setLoadingSite] = useState(true);
   const [loadingServicos, setLoadingServicos] = useState(true);
+  const [saveMessage, setSaveMessage] = useState<{ type: "ok" | "erro"; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,37 +136,57 @@ export default function AdminConfiguracoesPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const showMessage = (type: "ok" | "erro", text: string) => {
+    setSaveMessage({ type, text });
+    setTimeout(() => setSaveMessage(null), 5000);
+  };
+
   const handleSaveHorario = async () => {
     const dias = horarioForm.diasSemana ?? [];
     const invalid = dias.some(
       (d) => !d.fechado && d.abre >= d.fecha
     );
     if (invalid) {
-      alert("Em cada dia aberto, a hora de abertura deve ser anterior à de fecho.");
+      showMessage("erro", "Em cada dia aberto, a hora de abertura deve ser anterior à de fecho.");
       return;
     }
     setSavingHorario(true);
+    setSaveMessage(null);
     try {
       const token = await user?.getIdToken?.();
-      if (token) {
-        const res = await fetch("/api/admin/config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ type: "horario", ...horarioForm }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? "Erro ao guardar");
+      const tryApi = token
+        ? (async () => {
+            const res = await fetch("/api/admin/config", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ type: "horario", ...horarioForm }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error ?? `API ${res.status}`);
+            }
+            invalidate(CACHE_KEYS.horario);
+          })
+        : null;
+      if (tryApi) {
+        try {
+          await tryApi();
+        } catch (apiErr) {
+          const msg = apiErr instanceof Error ? apiErr.message : "";
+          if (msg.includes("503") || msg.includes("Firebase Admin") || msg.includes("configurado")) {
+            await setHorarioConfig(horarioForm);
+          } else {
+            throw apiErr;
+          }
         }
-        invalidate(CACHE_KEYS.horario);
       } else {
         await setHorarioConfig(horarioForm);
       }
       setHorario(horarioForm);
-      alert("Horário guardado com sucesso.");
+      showMessage("ok", "Horário guardado com sucesso.");
     } catch (e) {
       console.error("handleSaveHorario", e);
-      alert(e instanceof Error ? e.message : "Erro ao guardar. Tente novamente.");
+      showMessage("erro", e instanceof Error ? e.message : "Erro ao guardar. Verifique as regras do Firestore e variáveis de ambiente.");
     } finally {
       setSavingHorario(false);
     }
@@ -192,33 +218,49 @@ export default function AdminConfiguracoesPage() {
 
   const handleSaveSite = async () => {
     setSavingSite(true);
+    setSaveMessage(null);
     try {
       const token = await user?.getIdToken?.();
-      if (token) {
-        const res = await fetch("/api/admin/config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ type: "site", ...siteForm }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? "Erro ao guardar");
+      const tryApi = token
+        ? (async () => {
+            const res = await fetch("/api/admin/config", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ type: "site", ...siteForm }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error ?? `API ${res.status}`);
+            }
+            invalidate(CACHE_KEYS.site);
+          })
+        : null;
+      if (tryApi) {
+        try {
+          await tryApi();
+        } catch (apiErr) {
+          const msg = apiErr instanceof Error ? apiErr.message : "";
+          if (msg.includes("503") || msg.includes("Firebase Admin") || msg.includes("configurado")) {
+            await setSiteConfig(siteForm);
+          } else {
+            throw apiErr;
+          }
         }
-        invalidate(CACHE_KEYS.site);
       } else {
         await setSiteConfig(siteForm);
       }
       setSiteConfigState(siteForm);
-      alert("Configurações guardadas com sucesso.");
+      showMessage("ok", "Configurações guardadas com sucesso.");
     } catch (e) {
       console.error("handleSaveSite", e);
-      alert(e instanceof Error ? e.message : "Erro ao guardar. Tente novamente.");
+      showMessage("erro", e instanceof Error ? e.message : "Erro ao guardar. Verifique as regras do Firestore e variáveis de ambiente.");
     } finally {
       setSavingSite(false);
     }
   };
 
   const openNewServico = () => {
+    setUploadImageError(null);
     setEditingServicoId("new");
     const nextOrder = Math.max(0, ...servicos.map((s) => s.ordem ?? 0)) + 1;
     setServicoForm({
@@ -235,6 +277,7 @@ export default function AdminConfiguracoesPage() {
   };
 
   const openEditServico = (s: Servico) => {
+    setUploadImageError(null);
     setEditingServicoId(s.id);
     setServicoForm({
       nome: s.nome,
@@ -251,53 +294,113 @@ export default function AdminConfiguracoesPage() {
 
   const closeServicoForm = () => {
     setEditingServicoId(null);
+    setUploadImageError(null);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) {
+      setUploadImageError("Selecione um ficheiro de imagem (JPG, PNG, etc.).");
+      return;
+    }
+    if (!storage) {
+      setUploadImageError("Storage do Firebase não está configurado.");
+      return;
+    }
+    setUploadImageError(null);
+    setUploadingImage(true);
+    try {
+      const path = `servicos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setServicoForm((f) => ({ ...f, imagemUrl: url }));
+    } catch (err) {
+      setUploadImageError(err instanceof Error ? err.message : "Falha ao enviar imagem. Verifique as regras do Storage.");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+      fileInputRef.current?.value && (fileInputRef.current.value = "");
+    }
   };
 
   const handleSaveServico = async () => {
     if (!servicoForm.nome.trim()) {
-      alert("Nome é obrigatório.");
+      showMessage("erro", "Nome é obrigatório.");
       return;
     }
     setSavingServico(true);
+    setSaveMessage(null);
+    const formToSave = {
+      ...servicoForm,
+      imagemUrl: (servicoForm.imagemUrl ?? "").trim() || undefined,
+    };
     try {
       const token = await user?.getIdToken?.();
-      if (token) {
-        if (editingServicoId === "new") {
-          const res = await fetch("/api/admin/servicos", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ action: "create", servico: servicoForm }),
-          });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error ?? "Erro ao guardar");
+      const callApi = token
+        ? async () => {
+            if (editingServicoId === "new") {
+              const res = await fetch("/api/admin/servicos", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ action: "create", servico: formToSave }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error ?? `API ${res.status}`);
+              }
+            } else if (editingServicoId) {
+              const res = await fetch("/api/admin/servicos", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ action: "update", id: editingServicoId, servico: formToSave }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error ?? `API ${res.status}`);
+              }
+            }
+            invalidate(CACHE_KEYS.servicos);
+            invalidate(CACHE_KEYS.servicosAdmin);
           }
-        } else if (editingServicoId) {
-          const res = await fetch("/api/admin/servicos", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ action: "update", id: editingServicoId, servico: servicoForm }),
-          });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error ?? "Erro ao guardar");
+        : null;
+      if (callApi) {
+        try {
+          await callApi();
+        } catch (apiErr) {
+          const msg = apiErr instanceof Error ? apiErr.message : "";
+          if (msg.includes("503") || msg.includes("Firebase Admin") || msg.includes("configurado")) {
+            if (editingServicoId === "new") {
+              await createServico(formToSave);
+            } else if (editingServicoId) {
+              await updateServico(editingServicoId, formToSave);
+            }
+            invalidate(CACHE_KEYS.servicos);
+            invalidate(CACHE_KEYS.servicosAdmin);
+          } else {
+            throw apiErr;
           }
         }
-        invalidate(CACHE_KEYS.servicos);
-        invalidate(CACHE_KEYS.servicosAdmin);
       } else {
         if (editingServicoId === "new") {
-          await createServico(servicoForm);
+          await createServico(formToSave);
         } else if (editingServicoId) {
-          await updateServico(editingServicoId, servicoForm);
+          await updateServico(editingServicoId, formToSave);
         }
       }
       const list = await getServicosAdmin();
       setServicos(list);
+      if (typeof editingServicoId === "string" && editingServicoId !== "new") {
+        setFailedImageIds((prev) => {
+          const next = new Set(prev);
+          next.delete(editingServicoId);
+          return next;
+        });
+      }
       closeServicoForm();
-      alert("Serviço guardado com sucesso.");
+      showMessage("ok", "Serviço guardado com sucesso.");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Erro ao guardar serviço. Tente novamente.");
+      showMessage("erro", e instanceof Error ? e.message : "Erro ao guardar serviço. Verifique as regras do Firestore.");
     } finally {
       setSavingServico(false);
     }
@@ -306,20 +409,37 @@ export default function AdminConfiguracoesPage() {
   const handleDeleteServico = async (id: string) => {
     if (!confirm("Desativar este serviço? Deixará de aparecer na lista pública.")) return;
     setDeletingId(id);
+    setSaveMessage(null);
     try {
       const token = await user?.getIdToken?.();
-      if (token) {
-        const res = await fetch("/api/admin/servicos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ action: "delete", id }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? "Erro ao desativar");
+      const tryApi = token
+        ? async () => {
+            const res = await fetch("/api/admin/servicos", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ action: "delete", id }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error ?? `API ${res.status}`);
+            }
+            invalidate(CACHE_KEYS.servicos);
+            invalidate(CACHE_KEYS.servicosAdmin);
+          }
+        : null;
+      if (tryApi) {
+        try {
+          await tryApi();
+        } catch (apiErr) {
+          const msg = apiErr instanceof Error ? apiErr.message : "";
+          if (msg.includes("503") || msg.includes("Firebase Admin") || msg.includes("configurado")) {
+            await deleteServico(id);
+            invalidate(CACHE_KEYS.servicos);
+            invalidate(CACHE_KEYS.servicosAdmin);
+          } else {
+            throw apiErr;
+          }
         }
-        invalidate(CACHE_KEYS.servicos);
-        invalidate(CACHE_KEYS.servicosAdmin);
       } else {
         await deleteServico(id);
       }
@@ -327,7 +447,7 @@ export default function AdminConfiguracoesPage() {
       setServicos(list);
       if (editingServicoId === id) closeServicoForm();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Erro ao desativar. Tente novamente.");
+      showMessage("erro", e instanceof Error ? e.message : "Erro ao desativar.");
     } finally {
       setDeletingId(null);
     }
@@ -341,6 +461,19 @@ export default function AdminConfiguracoesPage() {
           ← Voltar ao site
         </Link>
       </div>
+
+      {saveMessage && (
+        <div
+          role="alert"
+          className={`mb-6 rounded-lg px-4 py-3 ${
+            saveMessage.type === "ok"
+              ? "bg-green-50 text-green-800 border border-green-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
+          {saveMessage.text}
+        </div>
+      )}
 
       <div className="space-y-8">
           {/* Geral / Site */}
@@ -722,14 +855,48 @@ export default function AdminConfiguracoesPage() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-[#666]">URL da imagem</label>
-                    <input
-                      type="url"
-                      value={servicoForm.imagemUrl}
-                      onChange={(e) => setServicoForm((f) => ({ ...f, imagemUrl: e.target.value }))}
-                      className="mt-1 w-full rounded-lg border border-[#ddd] px-3 py-2 text-[#171717]"
-                      placeholder="https://..."
-                    />
+                    <label className="block text-xs font-medium text-[#666]">Imagem do serviço</label>
+                    {servicoForm.imagemUrl ? (
+                      <div className="mt-1 flex items-start gap-3">
+                        <img
+                          src={servicoForm.imagemUrl}
+                          alt=""
+                          className="h-20 w-20 shrink-0 rounded-lg border border-[#eee] object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-[#666]">Pré-visualização. Pode alterar o URL em baixo ou enviar outra imagem.</p>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={servicoForm.imagemUrl}
+                        onChange={(e) => setServicoForm((f) => ({ ...f, imagemUrl: e.target.value }))}
+                        className="min-w-[200px] flex-1 rounded-lg border border-[#ddd] px-3 py-2 text-[#171717]"
+                        placeholder="URL da imagem (https://...)"
+                      />
+                      <span className="text-xs text-[#999]">ou</span>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImage || !storage}
+                        className="rounded-lg border border-[#b76e79] bg-white px-3 py-2 text-sm font-medium text-[#b76e79] hover:bg-[#fdf8f9] disabled:opacity-50"
+                      >
+                        {uploadingImage ? "A enviar…" : "Enviar imagem do computador"}
+                      </button>
+                    </div>
+                    {uploadImageError && (
+                      <p className="mt-1 text-xs text-red-600">{uploadImageError}</p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-4 sm:col-span-2">
                     <label className="flex cursor-pointer items-center gap-2">

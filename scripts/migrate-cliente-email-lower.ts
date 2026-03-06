@@ -9,7 +9,7 @@ import { config } from "dotenv";
 
 config({ path: ".env.local" });
 
-import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { initializeApp, cert, getApps, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore, type DocumentReference } from "firebase-admin/firestore";
 import * as path from "path";
 
@@ -17,7 +17,12 @@ async function main() {
   if (getApps().length === 0) {
     const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     if (keyPath) {
-      const serviceAccount = require(path.resolve(keyPath)) as { project_id: string; client_email: string; private_key: string };
+      const raw = require(path.resolve(keyPath)) as { project_id?: string; client_email?: string; private_key?: string };
+      const serviceAccount: ServiceAccount = {
+        projectId: raw.project_id,
+        clientEmail: raw.client_email,
+        privateKey: raw.private_key,
+      };
       initializeApp({ credential: cert(serviceAccount) });
     } else {
       const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;

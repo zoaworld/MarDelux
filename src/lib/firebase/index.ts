@@ -26,6 +26,10 @@ export {
   getAllMarcacoes,
   updateMarcacao,
   getSlotsDisponiveis,
+  getTimelineDia,
   createMarcacao,
   type MarcacaoInput,
+  type TimelineDia,
+  type BlocoOcupado,
+  type IntervaloDisponivel,
 } from "./marcacoes";

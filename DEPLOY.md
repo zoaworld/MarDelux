@@ -43,7 +43,15 @@ No projeto Vercel (mar-delux):
 
 5. Guardar. Os valores ficam em segredo e não aparecem no repositório.
 
-**Firestore:** A app guarda o horário de funcionamento em `config/horario` (campos `startHour`, `endHour`, `bufferMinutes`). Se usares regras de segurança no Firestore, permite leitura/escrita a esta coleção para utilizadores autenticados (ou apenas admin).
+**Firestore:** A app guarda o horário em `config/horario` e dados gerais em `config/site`. **OBRIGATÓRIO** para gravações funcionarem:
+
+1. Em [Firebase Console → Firestore → Rules](https://console.firebase.google.com/project/mardelux-app/firestore/rules), colar as regras de `firestore.rules` (na raiz do projeto) e publicar.
+2. Sem isto, as alterações nas configurações **não serão guardadas** (nem em dev nem em produção).
+
+**Storage (imagens dos serviços):** Para o upload de imagens na configuração de serviços funcionar:
+
+1. Em [Firebase Console → Storage → Rules](https://console.firebase.google.com/project/mardelux-app/storage/mardelux-app.firebasestorage.app/rules), colar as regras de `storage.rules` (na raiz do projeto) e **Publicar**.
+2. Sem isto, ao enviar uma imagem aparece "User does not have permission" (storage/unauthorized).
 
 6. **Importante – Cloud Firestore API:** Se vires o erro "Cloud Firestore API has not been used... or it is disabled", ativa a API em [Google Cloud Console → Cloud Firestore API](https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=mardelux-app) (Enable). Ou cria a base de dados em Firebase Console → Firestore Database → Create database.
 
@@ -79,27 +87,15 @@ Após isto, **www.mardelux.pt** (e o URL \*.vercel.app) deve servir a aplicaçã
 
 ---
 
-## 4. Páginas lentas / erros 500 (Próximas marcações, Admin)
+## 4. Migração: Marcações e email (clienteEmailLower)
 
-Se **Próximas marcações** e as **páginas de Admin** demoram muito a carregar (ou dão erro 500), quase sempre falta configurar o **Firebase Admin** na Vercel:
+Se já tinha marcações antes de normalizar emails (para aparecerem na área do cliente independentemente de maiúsculas/minúsculas), execute o script de migração **uma vez**:
 
-1. **Vercel** → teu projeto → **Settings** → **Environment Variables**
-2. Confirmar que estas 3 variáveis existem para **Production**:
-   - `FIREBASE_ADMIN_PROJECT_ID` 
-   - `FIREBASE_ADMIN_CLIENT_EMAIL`
-   - `FIREBASE_ADMIN_PRIVATE_KEY`
+```bash
+npm run migrate:cliente-email
+```
 
-3. Para obter os valores:
-   - [Firebase Console](https://console.firebase.google.com) → selecionar projeto **mardelux-app** → ⚙️ Project Settings
-   - **Service Accounts** → **Generate new private key**
-   - Abrir o JSON descarregado e copiar:
-     - `project_id` → `FIREBASE_ADMIN_PROJECT_ID`
-     - `client_email` → `FIREBASE_ADMIN_CLIENT_EMAIL`
-     - `private_key` → `FIREBASE_ADMIN_PRIVATE_KEY` (copiar completo, incluindo `-----BEGIN...-----` e `-----END...-----`)
-
-4. **Importante:** na Vercel, ao colar `FIREBASE_ADMIN_PRIVATE_KEY`, o valor pode ter quebras de linha. Se der erro, tenta colar o JSON inteiro e depois editar para conter só o `private_key` com `\n` entre linhas (a Vercel aceita assim).
-
-5. Depois de guardar as variáveis, fazer **Redeploy** (Deployments → ⋮ → Redeploy).
+O script adiciona o campo `clienteEmailLower` às marcações antigas. As novas marcações já são guardadas com este campo automaticamente.
 
 ---
 

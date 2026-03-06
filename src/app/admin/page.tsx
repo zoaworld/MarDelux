@@ -21,7 +21,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminAgendaPage() {
-  const { marcacoes, loading, updateMarcacaoStatus } = useAdminData();
+  const { marcacoes, loading, updateMarcacaoStatus, updateMarcacaoPagamento } = useAdminData();
   const [filterData, setFilterData] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
@@ -137,6 +137,21 @@ export default function AdminAgendaPage() {
                     </span>
                   </td>
                   <td className="p-3">
+                    {m.preferenciaPagamento === "agora" && !m.pagamentoRecebido && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateMarcacaoPagamento(m.id, {
+                            pagamentoRecebido: true,
+                            metodoPagamento: "MB Way",
+                            status: "confirmada",
+                          })
+                        }
+                        className="mr-2 rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800 hover:bg-green-200"
+                      >
+                        Pagamento recebido
+                      </button>
+                    )}
                     {m.status === "pendente" && (
                       <>
                         <button

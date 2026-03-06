@@ -40,10 +40,11 @@ export async function GET(request: NextRequest) {
       );
     }
     const decoded = await adminAuth.verifyIdToken(token);
-    const email = decoded.email;
-    if (!email) {
+    const rawEmail = decoded.email;
+    if (!rawEmail) {
       return NextResponse.json({ error: "Email não encontrado" }, { status: 401 });
     }
+    const email = rawEmail.trim().toLowerCase();
 
     const cached = nocache ? undefined : getCached(email);
     if (cached !== undefined) {
@@ -51,12 +52,19 @@ export async function GET(request: NextRequest) {
     }
 
     const marcacoesRef = adminDb.collection("marcacoes");
-    const snapshot = await marcacoesRef
-      .where("clienteEmail", "==", email)
-      .where("status", "in", ["pendente", "confirmada", "concluida"])
-      .get();
+    // Query por clienteEmailLower (novo) e clienteEmail (retrocompatibilidade)
+    const [snapNew, snapOld] = await Promise.all([
+      marcacoesRef.where("clienteEmailLower", "==", email).where("status", "in", ["pendente", "confirmada", "concluida"]).get(),
+      marcacoesRef.where("clienteEmail", "==", email).where("status", "in", ["pendente", "confirmada", "concluida"]).get(),
+    ]);
+    const seen = new Set<string>();
+    const allDocs = [...snapNew.docs, ...snapOld.docs].filter((d) => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
 
-    const list = snapshot.docs.map((d) => {
+    const list = allDocs.map((d) => {
       const x = d.data();
       return {
         id: d.id,

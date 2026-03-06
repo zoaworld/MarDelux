@@ -4,7 +4,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { Timestamp } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminFirestore } from "@/lib/firebase-admin";
+import { getSlotsDisponiveis } from "@/lib/firebase/marcacoes";
+import type { HorarioConfig } from "@/lib/firebase/app-settings";
+import { BUFFER_TIME_MINUTES } from "@/lib/constants";
 
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
   .split(",")
@@ -13,6 +17,10 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
 
 const CACHE = new Map<string, { data: unknown[]; expires: number }>();
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 min
+
+function clearCache() {
+  CACHE.clear();
+}
 
 function getCached() {
   const entry = CACHE.get("admin");
@@ -71,6 +79,9 @@ export async function GET(request: NextRequest) {
         horaFim: (x.horaFim as string) ?? "",
         status: (x.status as string) ?? "pendente",
         notasSessao: x.notasSessao as string | undefined,
+        preferenciaPagamento: (x.preferenciaPagamento as "na_sessao" | "agora") ?? "na_sessao",
+        pagamentoRecebido: (x.pagamentoRecebido as boolean) ?? false,
+        metodoPagamento: x.metodoPagamento as "MB Way" | undefined | null,
       };
     });
 
@@ -89,6 +100,137 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: "Token inválido ou erro do servidor" },
       { status }
+    );
+  }
+}
+
+/** Cria uma marcação (cenário loja / admin) */
+export async function POST(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) {
+      return NextResponse.json({ error: "Token em falta" }, { status: 401 });
+    }
+
+    const adminAuth = getAdminAuth();
+    const adminDb = getAdminFirestore();
+    if (!adminAuth || !adminDb) {
+      return NextResponse.json(
+        { error: "Firebase Admin não configurado" },
+        { status: 503 }
+      );
+    }
+
+    const decoded = await adminAuth.verifyIdToken(token);
+    const email = (decoded.email ?? "").toLowerCase();
+    if (!ADMIN_EMAILS.includes(email)) {
+      return NextResponse.json({ error: "Acesso reservado ao administrador" }, { status: 403 });
+    }
+
+    const body = (await request.json()) as {
+      clienteNome: string;
+      clienteEmail: string;
+      clienteTelefone?: string;
+      servicoId: string;
+      servicoNome: string;
+      duracaoMinutos: number;
+      preco: number;
+      data: string;
+      horaInicio: string;
+      preferenciaPagamento?: "na_sessao" | "agora";
+    };
+
+    if (!body.clienteNome?.trim() || !body.clienteEmail?.trim() || !body.servicoId || !body.data || !body.horaInicio) {
+      return NextResponse.json(
+        { error: "Faltam dados obrigatórios: clienteNome, clienteEmail, servicoId, data, horaInicio" },
+        { status: 400 }
+      );
+    }
+
+    const preferenciaPagamento = body.preferenciaPagamento ?? "na_sessao";
+
+    const configSnap = await adminDb.collection("config").doc("horario").get();
+    let horarioConfig: HorarioConfig | undefined;
+    if (configSnap.exists) {
+      const d = configSnap.data();
+      const rawDias = (d?.diasSemana ?? []) as Array<{ diaSemana?: number; abre?: string; fecha?: string; fechado?: boolean }>;
+      const diasSemana = [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => {
+        const x = rawDias.find((item) => Number(item.diaSemana) === diaSemana);
+        return {
+          diaSemana,
+          abre: typeof x?.abre === "string" ? x.abre : "09:00",
+          fecha: typeof x?.fecha === "string" ? x.fecha : "18:00",
+          fechado: Boolean(x?.fechado),
+        };
+      });
+      horarioConfig = {
+        startHour: typeof d?.startHour === "number" ? d.startHour : 9,
+        endHour: typeof d?.endHour === "number" ? d.endHour : 18,
+        bufferMinutes: typeof d?.bufferMinutes === "number" ? d.bufferMinutes : BUFFER_TIME_MINUTES,
+        diasSemana,
+        feriados: Array.isArray(d?.feriados) ? d.feriados : [],
+      };
+    }
+
+    const ocupadosSnap = await adminDb
+      .collection("marcacoes")
+      .where("data", "==", body.data)
+      .where("status", "in", ["pendente", "confirmada"])
+      .get();
+
+    const ocupados = ocupadosSnap.docs.map((doc) => {
+      const x = doc.data();
+      return {
+        horaInicio: (x.horaInicio as string) ?? "",
+        horaFim: (x.horaFim as string) ?? "",
+      };
+    });
+
+    const slots = getSlotsDisponiveis(
+      body.data,
+      body.duracaoMinutos,
+      ocupados,
+      horarioConfig ?? undefined
+    );
+
+    if (!slots.includes(body.horaInicio)) {
+      return NextResponse.json(
+        { error: "O horário escolhido não está disponível ou conflitua com outras marcações." },
+        { status: 400 }
+      );
+    }
+
+    const [h, m] = body.horaInicio.split(":").map(Number);
+    const endMin = (h ?? 0) * 60 + (m ?? 0) + body.duracaoMinutos;
+    const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+
+    const docRef = await adminDb.collection("marcacoes").add({
+      clienteEmail: body.clienteEmail.trim(),
+      clienteNome: body.clienteNome.trim(),
+      clienteTelefone: body.clienteTelefone?.trim() || null,
+      servicoId: body.servicoId,
+      servicoNome: body.servicoNome,
+      duracaoMinutos: body.duracaoMinutos,
+      preco: body.preco,
+      data: body.data,
+      horaInicio: body.horaInicio,
+      horaFim,
+      status: "pendente",
+      preferenciaPagamento,
+      pagamentoRecebido: false,
+      metodoPagamento: null,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    clearCache();
+    return NextResponse.json({ id: docRef.id });
+  } catch (err) {
+    console.error("[api/admin/marcacoes POST]", err);
+    return NextResponse.json(
+      { error: "Erro ao criar marcação. Tente novamente." },
+      { status: 503 }
     );
   }
 }

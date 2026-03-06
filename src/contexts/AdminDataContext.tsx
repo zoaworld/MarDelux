@@ -24,6 +24,9 @@ export type MarcacaoAdmin = {
   status: string;
   preco: number;
   notasSessao?: string;
+  preferenciaPagamento?: "na_sessao" | "agora";
+  pagamentoRecebido?: boolean;
+  metodoPagamento?: "MB Way" | null;
 };
 
 interface AdminDataContextValue {
@@ -33,6 +36,7 @@ interface AdminDataContextValue {
   refresh: () => Promise<void>;
   updateMarcacaoStatus: (id: string, status: string) => Promise<void>;
   updateMarcacaoNotas: (id: string, notasSessao?: string) => Promise<void>;
+  updateMarcacaoPagamento: (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: "MB Way"; status?: string }) => Promise<void>;
 }
 
 const AdminDataContext = createContext<AdminDataContextValue | null>(null);
@@ -107,6 +111,22 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  const updateMarcacaoPagamento = useCallback(
+    async (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: "MB Way"; status?: string }) => {
+      try {
+        await updateMarcacao(id, data);
+        setMarcacoes((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, ...data } : m
+          )
+        );
+      } catch {
+        await refresh();
+      }
+    },
+    [refresh]
+  );
+
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -120,6 +140,7 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
         refresh,
         updateMarcacaoStatus,
         updateMarcacaoNotas,
+        updateMarcacaoPagamento,
       }}
     >
       {children}

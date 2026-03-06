@@ -14,7 +14,7 @@ function formatDate(str: string) {
 }
 
 export default function AdminCRMPage() {
-  const { marcacoes, loading, updateMarcacaoNotas } = useAdminData();
+  const { marcacoes, loading, updateMarcacaoNotas, updateMarcacaoPagamento } = useAdminData();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [editingNotas, setEditingNotas] = useState<{ id: string; value: string } | null>(null);
 
@@ -119,8 +119,24 @@ export default function AdminCRMPage() {
                         <span className="text-sm text-[#666]">
                           {formatDate(m.data)} · {m.horaInicio} · {m.preco} € ·{" "}
                           {m.status}
+                          {m.preferenciaPagamento === "agora" && m.pagamentoRecebido && " · MB Way ✓"}
                         </span>
                       </div>
+                      {m.preferenciaPagamento === "agora" && !m.pagamentoRecebido && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateMarcacaoPagamento(m.id, {
+                              pagamentoRecebido: true,
+                              metodoPagamento: "MB Way",
+                              status: "confirmada",
+                            })
+                          }
+                          className="mt-2 rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800 hover:bg-green-200"
+                        >
+                          Pagamento recebido (MB Way)
+                        </button>
+                      )}
                       {editingNotas?.id === m.id ? (
                         <div className="mt-3">
                           <textarea

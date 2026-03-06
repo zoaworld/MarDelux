@@ -1,0 +1,12 @@
+rules_version = '2';
+// Regras Firebase Storage – necessárias para upload de imagens dos serviços
+// Em Firebase Console → Storage → Rules, colar e publicar.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Imagens dos serviços: leitura pública, escrita só para utilizadores autenticados (admin)
+    match /servicos/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

@@ -10,29 +10,12 @@ import {
   createMarcacao,
   getHorarioConfig,
 } from "@/lib/firebase";
+import { SlotPicker } from "@/components/ui/SlotPicker";
 import { DEFAULT_SERVICOS } from "@/lib/default-servicos";
 import type { Servico } from "@/types";
 import type { HorarioConfig } from "@/lib/firebase";
 
 const STEPS = ["Serviço", "Data e hora", "Confirmação"] as const;
-
-type PeriodoHora = "manha" | "tarde" | "fimTarde";
-
-/** Manhã: abertura → 13:00 | Tarde: 13:00 → 17:00 | Fim da Tarde: 17:00 → fecho */
-const PERIODOS: { id: PeriodoHora; label: string; minInicio: number; minFim: number }[] = [
-  { id: "manha", label: "Manhã", minInicio: 0, minFim: 13 * 60 },        // até 13:00 (exclusive)
-  { id: "tarde", label: "Tarde", minInicio: 13 * 60, minFim: 17 * 60 },  // 13:00 até 17:00 (exclusive)
-  { id: "fimTarde", label: "Fim da Tarde", minInicio: 17 * 60, minFim: 24 * 60 }, // 17:00 até fecho
-];
-
-function filterSlotsByPeriodo(slots: string[], periodo: PeriodoHora): string[] {
-  const p = PERIODOS.find((x) => x.id === periodo);
-  if (!p) return slots;
-  return slots.filter((h) => {
-    const m = horaToMinutes(h);
-    return m >= p.minInicio && m < p.minFim;
-  });
-}
 
 function formatDate(str: string): string {
   const d = new Date(str + "T12:00:00");
@@ -41,11 +24,6 @@ function formatDate(str: string): string {
     day: "numeric",
     month: "long",
   });
-}
-
-function horaToMinutes(h: string): number {
-  const [hh, mm] = h.split(":").map(Number);
-  return (hh ?? 0) * 60 + (mm ?? 0);
 }
 
 /** Calendário mensal para seleção de data */
@@ -160,7 +138,6 @@ export default function AgendarFlow() {
   const [slots, setSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedHora, setSelectedHora] = useState<string | null>(null);
-  const [periodoHora, setPeriodoHora] = useState<PeriodoHora>("manha");
   const [form, setForm] = useState({ nome: "", email: "", telefone: "" });
 
   // Preencher email automaticamente quando o utilizador está logado
@@ -196,7 +173,6 @@ export default function AgendarFlow() {
     setLoadingSlots(true);
     setSlots([]);
     setSelectedHora(null);
-    setPeriodoHora("manha");
     getMarcacoesByDate(selectedData)
       .then((ocupados) => {
         const config = horarioConfig ?? undefined;
@@ -216,6 +192,7 @@ export default function AgendarFlow() {
     setError(null);
     setSubmitting(true);
     try {
+      const horaFimCalc = horaFim(selectedHora, selectedServico.duracaoMinutos);
       const id = await createMarcacao({
         clienteNome: form.nome.trim(),
         clienteEmail: form.email.trim(),
@@ -228,6 +205,23 @@ export default function AgendarFlow() {
         horaInicio: selectedHora,
         preferenciaPagamento,
       });
+      try {
+        await fetch("/api/email/confirmacao-marcacao", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clienteEmail: form.email.trim(),
+            clienteNome: form.nome.trim(),
+            data: selectedData,
+            horaInicio: selectedHora,
+            horaFim: horaFimCalc,
+            servicoNome: selectedServico.nome,
+            preco: selectedServico.preco,
+          }),
+        });
+      } catch {
+        /* ignorar falha no email – marcação já foi criada */
+      }
       setCreatedId(id);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Não foi possível guardar a marcação. Tente novamente.";
@@ -247,7 +241,7 @@ export default function AgendarFlow() {
           Marcação efetuada
         </h2>
         <p className="mt-2 text-[var(--gray-dark)]">
-          A sua sessão foi registada. Enviaremos um email de confirmação para{" "}
+          A sua sessão foi registada e receberá um email de confirmação em{" "}
           <strong>{form.email}</strong>.
         </p>
         {preferenciaPagamento === "agora" && (
@@ -297,7 +291,6 @@ export default function AgendarFlow() {
 
   const today = new Date().toISOString().slice(0, 10);
   const bufferMin = horarioConfig?.bufferMinutes ?? 15;
-  const slotsFiltrados = selectedData && slots.length > 0 ? filterSlotsByPeriodo(slots, periodoHora) : [];
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -393,61 +386,17 @@ export default function AgendarFlow() {
           {selectedData && (
             <>
               <p className="mt-6 text-sm font-semibold text-[var(--foreground)]">Hora de início</p>
-              {loadingSlots ? (
-                <p className="mt-2 text-sm text-[var(--gray-dark)]">A carregar horários...</p>
-              ) : slots.length === 0 ? (
-                <p className="mt-2 rounded-lg bg-[var(--gray-light)] p-4 text-sm text-[var(--gray-dark)]">
-                  Sem horários disponíveis neste dia. Escolha outra data.
-                </p>
-              ) : (
-                <>
-                  <div className="mt-2 flex gap-2">
-                    {PERIODOS.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          setPeriodoHora(p.id);
-                          setSelectedHora(null);
-                        }}
-                        className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                          periodoHora === p.id
-                            ? "bg-[var(--rose-gold)] text-white"
-                            : "bg-[var(--gray-light)] text-[var(--foreground)] hover:bg-[var(--gray-mid)]/10"
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                  {slotsFiltrados.length === 0 ? (
-                    <p className="mt-3 text-sm text-[var(--gray-dark)]">
-                      Nenhum horário disponível neste período. Tente outro período ou outra data.
-                    </p>
-                  ) : (
-                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {slotsFiltrados.map((h) => {
-                        const fim = horaFim(h, selectedServico.duracaoMinutos);
-                        return (
-                          <button
-                            key={h}
-                            type="button"
-                            onClick={() => setSelectedHora(h)}
-                            className={`rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition ${
-                              selectedHora === h
-                                ? "border-[var(--rose-gold)] bg-[var(--rose-gold-light)] text-[var(--rose-gold)]"
-                                : "border-[var(--gray-light)] text-[var(--foreground)] hover:border-[var(--rose-gold)]/50"
-                            }`}
-                          >
-                            <span className="block">{h}</span>
-                            <span className="block text-xs opacity-80">– {fim}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
+              <div className="mt-2">
+                <SlotPicker
+                  slots={slots}
+                  value={selectedHora ?? ""}
+                  onChange={(h) => setSelectedHora(h)}
+                  loading={loadingSlots}
+                  emptyMessage="Sem horários disponíveis neste dia. Escolha outra data."
+                  variant="default"
+                  showPeriodTabs={slots.length > 6}
+                />
+              </div>
 
               {selectedData && selectedHora && (
                 <div className="mt-8 flex justify-end">

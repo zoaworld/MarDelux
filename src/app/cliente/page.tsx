@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMarcacoesByClienteEmail } from "@/lib/firebase";
 import Logo from "@/components/Logo";
+import { ClienteReagendarModal } from "@/components/cliente/ReagendarModal";
 
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
   .split(",")
@@ -71,6 +72,7 @@ export default function ClientePage() {
     user?.email ? getCachedMarcacoes(user.email) ?? [] : []
   );
   const [loading, setLoading] = useState(!user?.email);
+  const [reagendarId, setReagendarId] = useState<string | null>(null);
 
   const fetchMarcacoes = useCallback(async (email: string, authUser: { getIdToken: () => Promise<string> } | null, forceRefresh?: boolean) => {
     const cached = !forceRefresh ? getCachedMarcacoes(email) : null;
@@ -242,20 +244,31 @@ export default function ClientePage() {
             <ul className="mt-3 space-y-3">
               {proximas.map((m) => (
                 <li key={m.id} className="card-elevated p-5">
-                  <p className="font-medium text-[var(--foreground)]">{m.servicoNome}</p>
-                  <p className="mt-1 text-sm text-[var(--gray-dark)]">
-                    {formatDate(m.data)} · {m.horaInicio} – {m.horaFim} · {m.duracaoMinutos} min
-                    {m.preco != null && ` · ${m.preco} €`}
-                  </p>
-                  <span
-                    className={`mt-2 inline-block rounded-full px-3 py-0.5 text-xs font-medium ${
-                      m.status === "confirmada"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {m.status === "pendente" ? "Pendente" : "Confirmada"}
-                  </span>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-[var(--foreground)]">{m.servicoNome}</p>
+                      <p className="mt-1 text-sm text-[var(--gray-dark)]">
+                        {formatDate(m.data)} · {m.horaInicio} – {m.horaFim} · {m.duracaoMinutos} min
+                        {m.preco != null && ` · ${m.preco} €`}
+                      </p>
+                      <span
+                        className={`mt-2 inline-block rounded-full px-3 py-0.5 text-xs font-medium ${
+                          m.status === "confirmada"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {m.status === "pendente" ? "Pendente" : "Confirmada"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReagendarId(m.id)}
+                      className="text-sm font-medium text-[var(--rose-gold)] hover:underline"
+                    >
+                      Reagendar
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -287,6 +300,27 @@ export default function ClientePage() {
             </ul>
           )}
         </section>
+
+        {reagendarId &&
+          (() => {
+            const m = proximas.find((x) => x.id === reagendarId);
+            if (!m) return null;
+            return (
+              <ClienteReagendarModal
+                marcacao={{
+                  id: m.id,
+                  servicoNome: m.servicoNome,
+                  data: m.data,
+                  horaInicio: m.horaInicio,
+                  horaFim: m.horaFim,
+                  duracaoMinutos: m.duracaoMinutos,
+                }}
+                onClose={() => setReagendarId(null)}
+                onSuccess={() => fetchMarcacoes(user!.email!, user, true)}
+                getToken={() => user?.getIdToken?.() ?? Promise.resolve(undefined)}
+              />
+            );
+          })()}
       </main>
     </div>
   );

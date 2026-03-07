@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllMarcacoes, updateMarcacao } from "@/lib/firebase";
+import type { MetodoPagamento } from "@/types";
 
 export type MarcacaoAdmin = {
   id: string;
@@ -26,17 +27,17 @@ export type MarcacaoAdmin = {
   notasSessao?: string;
   preferenciaPagamento?: "na_sessao" | "agora";
   pagamentoRecebido?: boolean;
-  metodoPagamento?: "MB Way" | null;
+  metodoPagamento?: MetodoPagamento;
 };
 
 interface AdminDataContextValue {
   marcacoes: MarcacaoAdmin[];
   loading: boolean;
   error: boolean;
-  refresh: () => Promise<void>;
+  refresh: (force?: boolean) => Promise<void>;
   updateMarcacaoStatus: (id: string, status: string) => Promise<void>;
   updateMarcacaoNotas: (id: string, notasSessao?: string) => Promise<void>;
-  updateMarcacaoPagamento: (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: "MB Way"; status?: string }) => Promise<void>;
+  updateMarcacaoPagamento: (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: MetodoPagamento; status?: string }) => Promise<void>;
 }
 
 const AdminDataContext = createContext<AdminDataContextValue | null>(null);
@@ -47,7 +48,7 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force?: boolean) => {
     setLoading(true);
     setError(false);
     try {
@@ -56,7 +57,8 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 12000);
-        const res = await fetch("/api/admin/marcacoes", {
+        const url = force ? "/api/admin/marcacoes?nocache=1" : "/api/admin/marcacoes";
+        const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal,
         });
@@ -112,7 +114,7 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateMarcacaoPagamento = useCallback(
-    async (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: "MB Way"; status?: string }) => {
+    async (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: MetodoPagamento; status?: string }) => {
       try {
         await updateMarcacao(id, data);
         setMarcacoes((prev) =>

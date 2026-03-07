@@ -4,6 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAdminData } from "@/contexts/AdminDataContext";
 import { CRMSkeleton } from "@/components/admin/AdminSkeleton";
+import type { MetodoPagamento } from "@/types";
+
+const METODOS_PAGAMENTO: { value: MetodoPagamento; label: string }[] = [
+  { value: "Dinheiro", label: "Dinheiro" },
+  { value: "MB Way", label: "MB Way" },
+  { value: "Multibanco", label: "Multibanco" },
+  { value: "Cartão", label: "Cartão" },
+];
 
 function formatDate(str: string) {
   return new Date(str + "T12:00:00").toLocaleDateString("pt-PT", {
@@ -17,6 +25,7 @@ export default function AdminCRMPage() {
   const { marcacoes, loading, updateMarcacaoNotas, updateMarcacaoPagamento } = useAdminData();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [editingNotas, setEditingNotas] = useState<{ id: string; value: string } | null>(null);
+  const [pagamentoMenuId, setPagamentoMenuId] = useState<string | null>(null);
 
   const clients = Array.from(
     new Map(
@@ -117,25 +126,51 @@ export default function AdminCRMPage() {
                           {m.servicoNome}
                         </span>
                         <span className="text-sm text-[#666]">
-                          {formatDate(m.data)} · {m.horaInicio} · {m.preco} € ·{" "}
-                          {m.status}
-                          {m.preferenciaPagamento === "agora" && m.pagamentoRecebido && " · MB Way ✓"}
+                          {formatDate(m.data)} · {m.horaInicio} · {m.preco} € · {m.status}
+                          {m.pagamentoRecebido && m.metodoPagamento && (
+                            <> · ✓ {m.metodoPagamento}</>
+                          )}
                         </span>
                       </div>
-                      {m.preferenciaPagamento === "agora" && !m.pagamentoRecebido && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateMarcacaoPagamento(m.id, {
-                              pagamentoRecebido: true,
-                              metodoPagamento: "MB Way",
-                              status: "confirmada",
-                            })
-                          }
-                          className="mt-2 rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800 hover:bg-green-200"
-                        >
-                          Pagamento recebido (MB Way)
-                        </button>
+                      {!m.pagamentoRecebido && m.status !== "cancelada" && (
+                        <div className="relative mt-2 inline-block">
+                          <button
+                            type="button"
+                            onClick={() => setPagamentoMenuId(pagamentoMenuId === m.id ? null : m.id)}
+                            className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800 hover:bg-green-200"
+                            title="Escolha o método ao marcar como recebido"
+                          >
+                            Marcar pago ▾
+                          </button>
+                          {pagamentoMenuId === m.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                aria-hidden
+                                onClick={() => setPagamentoMenuId(null)}
+                              />
+                              <div className="absolute left-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border border-[#ddd] bg-white py-1 shadow-lg">
+                                {METODOS_PAGAMENTO.map(({ value, label }) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => {
+                                      updateMarcacaoPagamento(m.id, {
+                                        pagamentoRecebido: true,
+                                        metodoPagamento: value,
+                                        ...(m.status === "pendente" && { status: "confirmada" }),
+                                      });
+                                      setPagamentoMenuId(null);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-sm text-[#171717] hover:bg-[#f5f5f5]"
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                       {editingNotas?.id === m.id ? (
                         <div className="mt-3">

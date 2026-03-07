@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminFirestore } from "@/lib/firebase-admin";
+import { sendConfirmacaoMarcacao } from "@/lib/email";
 import { getSlotsDisponiveis } from "@/lib/firebase/marcacoes";
 import type { HorarioConfig } from "@/lib/firebase/app-settings";
 import { BUFFER_TIME_MINUTES } from "@/lib/constants";
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
         notasSessao: x.notasSessao as string | undefined,
         preferenciaPagamento: (x.preferenciaPagamento as "na_sessao" | "agora") ?? "na_sessao",
         pagamentoRecebido: (x.pagamentoRecebido as boolean) ?? false,
-        metodoPagamento: x.metodoPagamento as "MB Way" | undefined | null,
+        metodoPagamento: (x.metodoPagamento as "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null) ?? null,
       };
     });
 
@@ -216,7 +217,7 @@ export async function POST(request: NextRequest) {
       data: body.data,
       horaInicio: body.horaInicio,
       horaFim,
-      status: "pendente",
+      status: "confirmada",
       preferenciaPagamento,
       pagamentoRecebido: false,
       metodoPagamento: null,
@@ -225,6 +226,16 @@ export async function POST(request: NextRequest) {
     });
 
     clearCache();
+    void sendConfirmacaoMarcacao({
+      clienteEmail: body.clienteEmail.trim(),
+      clienteNome: body.clienteNome.trim(),
+      data: body.data,
+      horaInicio: body.horaInicio,
+      horaFim,
+      servicoNome: body.servicoNome,
+      preco: body.preco,
+    }).catch((e) => console.error("[admin marcacoes] email:", e));
+
     return NextResponse.json({ id: docRef.id });
   } catch (err) {
     console.error("[api/admin/marcacoes POST]", err);

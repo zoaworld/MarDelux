@@ -7,8 +7,8 @@ export const BUSINESS_HOURS = {
 /** Intervalo entre sessões (buffer para limpeza) em minutos */
 export const BUFFER_TIME_MINUTES = 15;
 
-/** Passo para geração de slots (ex.: 5 = oferta 14:00, 14:05, 14:10… para encaixar exatamente após buffer) */
-export const SLOT_STEP_MINUTES = 5;
+/** Passo para geração de slots (15 min = 09:00, 09:15, 09:30… menos opções, mais fácil de escolher) */
+export const SLOT_STEP_MINUTES = 15;
 
 /** Duração padrão de uma sessão em minutos */
 export const DEFAULT_SESSION_MINUTES = 60;

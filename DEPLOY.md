@@ -41,7 +41,12 @@ No projeto Vercel (mar-delux):
    - `FIREBASE_ADMIN_PRIVATE_KEY` = valor de `private_key` (copiar tal qual, incluindo `-----BEGIN...-----`)
    - Sem isto, a app usa Firestore directo do browser (mais lento); com isto, as marcações são buscadas pelo servidor (API) e respondem muito mais rápido.
 
-5. Guardar. Os valores ficam em segredo e não aparecem no repositório.
+5. **Email de confirmação (Resend):** para enviar emails de confirmação ao cliente após nova marcação:
+   - `RESEND_API_KEY` = chave API do [Resend](https://resend.com) (criar conta, verificar domínio)
+   - `RESEND_FROM_EMAIL` = email remetente verificado (ex.: `reservas@mardelux.pt`)
+   - `RESEND_FROM_NAME` = nome no remetente (ex.: `MarDelux`). Sem estas variáveis, o envio de email é ignorado (a marcação continua a funcionar).
+
+6. Guardar. Os valores ficam em segredo e não aparecem no repositório.
 
 **Firestore:** A app guarda o horário em `config/horario` e dados gerais em `config/site`. **OBRIGATÓRIO** para gravações funcionarem:
 

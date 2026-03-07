@@ -28,6 +28,9 @@ export interface Servico {
   destaque?: boolean;
 }
 
+/** Método de pagamento (manual: dinheiro na loja, MB Way online, etc.) */
+export type MetodoPagamento = "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null;
+
 /** Marcação/Agendamento */
 export interface Marcacao {
   id: string;

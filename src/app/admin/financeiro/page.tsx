@@ -18,6 +18,13 @@ export default function AdminFinanceiroPage() {
     (m) => m.status === "concluida" || m.status === "confirmada"
   );
 
+  const pagas = concluidas.filter((m) => m.pagamentoRecebido);
+  const porMetodo = pagas.reduce<Record<string, number>>((acc, m) => {
+    const metodo = m.metodoPagamento ?? "Não especificado";
+    acc[metodo] = (acc[metodo] ?? 0) + m.preco;
+    return acc;
+  }, {});
+
   const porDia = concluidas.reduce<Record<string, number>>((acc, m) => {
     acc[m.data] = (acc[m.data] ?? 0) + m.preco;
     return acc;
@@ -49,6 +56,33 @@ export default function AdminFinanceiroPage() {
           <div className="mb-8 rounded-xl bg-[#b76e79] p-6 text-white shadow-sm">
             <p className="text-sm opacity-90">Total faturado (confirmadas + concluídas)</p>
             <p className="text-3xl font-semibold">{totalGeral.toFixed(2)} €</p>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="mb-4 text-lg font-medium text-[#171717]">
+              Por método de pagamento
+            </h2>
+            <div className="rounded-xl bg-white p-6 shadow-sm">
+              {Object.keys(porMetodo).length === 0 ? (
+                <p className="text-[#666]">Nenhum pagamento registado com método.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {Object.entries(porMetodo)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([metodo, valor]) => (
+                      <li key={metodo} className="flex justify-between text-sm">
+                        <span className="text-[#666]">{metodo}</span>
+                        <span className="font-medium text-[#171717]">
+                          {valor.toFixed(2)} €
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              <p className="mt-3 text-xs text-[#999]">
+                Baseado nas marcações com pagamento marcado manualmente na agenda.
+              </p>
+            </div>
           </div>
 
           <div className="mb-8">
@@ -109,11 +143,11 @@ export default function AdminFinanceiroPage() {
 
           <div className="rounded-xl border border-[#eee] bg-[#F5F5F5] p-6">
             <h2 className="mb-2 text-lg font-medium text-[#171717]">
-              Pagamentos (Stripe)
+              Pagamentos manuais
             </h2>
             <p className="text-sm text-[#666]">
-              Integração com Stripe para pagamentos online: em breve. Por agora, o
-              controlo é feito pelas marcações confirmadas/concluídas acima.
+              Dinheiro (na loja) e MB Way (online) são registados na Agenda e no CRM ao marcar
+              &quot;Marcar pago&quot; e escolher o método. O resumo acima reflete esses dados.
             </p>
           </div>
         </>

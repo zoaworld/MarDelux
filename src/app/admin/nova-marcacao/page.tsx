@@ -10,6 +10,7 @@ import {
   getMarcacoesByDate,
   getSlotsDisponiveis,
 } from "@/lib/firebase";
+import { SlotPicker } from "@/components/ui/SlotPicker";
 import type { Servico } from "@/types";
 import type { HorarioConfig } from "@/lib/firebase";
 
@@ -268,30 +269,17 @@ export default function AdminNovaMarcacaoPage() {
           <div>
             <label className="block text-sm font-medium text-[#171717]">Hora de início</label>
             {form.data && selectedServico ? (
-              loadingSlots ? (
-                <p className="mt-2 text-sm text-[#666]">A carregar horários...</p>
-              ) : slots.length === 0 ? (
-                <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-                  Sem horários disponíveis em {formatDate(form.data)}.
-                </p>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {slots.map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, horaInicio: h }))}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                        form.horaInicio === h
-                          ? "border-[#b76e79] bg-[#b76e79] text-white"
-                          : "border-[#ddd] text-[#171717] hover:border-[#b76e79]"
-                      }`}
-                    >
-                      {h} – {horaFim(h, selectedServico.duracaoMinutos)}
-                    </button>
-                  ))}
-                </div>
-              )
+              <div className="mt-2">
+                <SlotPicker
+                  slots={slots}
+                  value={form.horaInicio}
+                  onChange={(h) => setForm((f) => ({ ...f, horaInicio: h }))}
+                  loading={loadingSlots}
+                  emptyMessage={`Sem horários disponíveis em ${formatDate(form.data)}.`}
+                  variant="admin"
+                  showPeriodTabs={slots.length > 8}
+                />
+              </div>
             ) : (
               <p className="mt-2 text-sm text-[#666]">Selecione serviço e data primeiro.</p>
             )}

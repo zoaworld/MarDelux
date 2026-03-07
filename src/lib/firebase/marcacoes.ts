@@ -226,7 +226,7 @@ async function fetchAllMarcacoes(max = 200) {
         notasSessao: x.notasSessao as string | undefined,
         preferenciaPagamento: (x.preferenciaPagamento as "na_sessao" | "agora") ?? "na_sessao",
         pagamentoRecebido: (x.pagamentoRecebido as boolean) ?? false,
-        metodoPagamento: x.metodoPagamento as "MB Way" | undefined | null,
+        metodoPagamento: (x.metodoPagamento as "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null) ?? null,
         createdAt: x.createdAt,
         updatedAt: x.updatedAt,
       };
@@ -251,14 +251,17 @@ export async function getAllMarcacoes(max = 200) {
   );
 }
 
-/** Atualizar marcação (status, notas de sessão SOAP, pagamento) */
+/** Atualizar marcação (status, notas, pagamento, reagendamento) */
 export async function updateMarcacao(
   id: string,
   data: {
     status?: string;
     notasSessao?: string;
     pagamentoRecebido?: boolean;
-    metodoPagamento?: "MB Way" | null;
+    metodoPagamento?: "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null;
+    data?: string;
+    horaInicio?: string;
+    horaFim?: string;
   }
 ): Promise<void> {
   if (!db) throw new Error("Firebase não está configurado.");
@@ -358,7 +361,7 @@ export async function createMarcacao(input: MarcacaoInput): Promise<string> {
     data: input.data,
     horaInicio: input.horaInicio,
     horaFim,
-    status: "pendente",
+    status: "confirmada",
     preferenciaPagamento,
     pagamentoRecebido: false,
     metodoPagamento: null,

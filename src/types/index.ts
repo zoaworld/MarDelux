@@ -1,13 +1,31 @@
-/** Cliente (área do cliente + CRM) */
+/** Sensibilidade à dor */
+export type SensibilidadeDor = "baixa" | "media" | "alta";
+
+/** Cliente (ficha completa no painel admin) */
 export interface Cliente {
   id: string;
   email: string;
   nome: string;
   telefone?: string;
-  preferencias?: string;
-  notas?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  /** Data de nascimento (YYYY-MM-DD) */
+  dataNascimento?: string;
+  /** Data de criação da conta/cliente */
+  clienteDesde?: string;
+  /** Origem: como conheceu MarDelux */
+  origem?: string;
+  // Saúde
+  problemasSaude?: boolean;
+  medicacao?: boolean;
+  contraindicatedoes?: boolean;
+  sensibilidadeDor?: SensibilidadeDor;
+  preferenciasAmbiente?: boolean;
+  // Observações
+  preferencias?: string; // Óleos, aromas, músicas
+  reacoes?: string; // Reações a produtos e técnicas
+  horarioPreferido?: string; // Horários de disponibilidade
+  notasPessoais?: string; // Notas sobre comportamento e satisfação
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** Serviço oferecido pelo estúdio */
@@ -31,6 +49,9 @@ export interface Servico {
 /** Método de pagamento (manual: dinheiro na loja, MB Way online, etc.) */
 export type MetodoPagamento = "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null;
 
+/** Motivo de cancelamento (para avaliação de clientes: só "cliente_cancela" conta no total canceladas) */
+export type MotivoCancelamento = "cliente_cancela" | "falha_tecnica" | "outro";
+
 /** Marcação/Agendamento */
 export interface Marcacao {
   id: string;
@@ -42,6 +63,9 @@ export interface Marcacao {
   status: "pendente" | "confirmada" | "concluida" | "cancelada";
   pagamentoId?: string;
   notasSessao?: string;
+  motivoCancelamento?: MotivoCancelamento;
+  motivoCancelamentoTexto?: string;
+  reagendadoCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -13,6 +13,7 @@ import type { MetodoPagamento } from "@/types";
 
 export type MarcacaoAdmin = {
   id: string;
+  clienteId?: string | null;
   clienteNome: string;
   clienteEmail: string;
   clienteTelefone?: string;
@@ -28,6 +29,9 @@ export type MarcacaoAdmin = {
   preferenciaPagamento?: "na_sessao" | "agora";
   pagamentoRecebido?: boolean;
   metodoPagamento?: MetodoPagamento;
+  motivoCancelamento?: "cliente_cancela" | "falha_tecnica" | "outro";
+  motivoCancelamentoTexto?: string;
+  reagendadoCount?: number;
 };
 
 interface AdminDataContextValue {
@@ -35,7 +39,7 @@ interface AdminDataContextValue {
   loading: boolean;
   error: boolean;
   refresh: (force?: boolean) => Promise<void>;
-  updateMarcacaoStatus: (id: string, status: string) => Promise<void>;
+  updateMarcacaoStatus: (id: string, status: string, extra?: { motivoCancelamento: "cliente_cancela" | "falha_tecnica" | "outro"; motivoCancelamentoTexto?: string }) => Promise<void>;
   updateMarcacaoNotas: (id: string, notasSessao?: string) => Promise<void>;
   updateMarcacaoPagamento: (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: MetodoPagamento; status?: string }) => Promise<void>;
 }
@@ -86,47 +90,100 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const updateMarcacaoStatus = useCallback(
-    async (id: string, status: string) => {
+    async (
+      id: string,
+      status: string,
+      extra?: { motivoCancelamento: "cliente_cancela" | "falha_tecnica" | "outro"; motivoCancelamentoTexto?: string }
+    ) => {
+      const token = await user?.getIdToken?.();
       try {
-        await updateMarcacao(id, { status });
+        if (token) {
+          const res = await fetch(`/api/admin/marcacoes/${id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status, ...extra }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error((data.error as string) ?? "Erro ao atualizar");
+          }
+        } else {
+          await updateMarcacao(id, { status, ...extra });
+        }
         setMarcacoes((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, status } : m))
+          prev.map((m) => (m.id === id ? { ...m, status, ...extra } : m))
         );
-      } catch {
+      } catch (e) {
         await refresh();
+        throw e;
       }
     },
-    [refresh]
+    [user, refresh]
   );
 
   const updateMarcacaoNotas = useCallback(
     async (id: string, notasSessao?: string) => {
+      const token = await user?.getIdToken?.();
       try {
-        await updateMarcacao(id, { notasSessao });
+        if (token) {
+          const res = await fetch(`/api/admin/marcacoes/${id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ notasSessao }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error((errData.error as string) ?? "Erro ao atualizar");
+          }
+        } else {
+          await updateMarcacao(id, { notasSessao });
+        }
         setMarcacoes((prev) =>
           prev.map((m) => (m.id === id ? { ...m, notasSessao } : m))
         );
-      } catch {
+      } catch (e) {
         await refresh();
+        throw e;
       }
     },
-    [refresh]
+    [user, refresh]
   );
 
   const updateMarcacaoPagamento = useCallback(
     async (id: string, data: { pagamentoRecebido: boolean; metodoPagamento?: MetodoPagamento; status?: string }) => {
+      const token = await user?.getIdToken?.();
       try {
-        await updateMarcacao(id, data);
+        if (token) {
+          const res = await fetch(`/api/admin/marcacoes/${id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error((errData.error as string) ?? "Erro ao atualizar");
+          }
+        } else {
+          await updateMarcacao(id, data);
+        }
         setMarcacoes((prev) =>
-          prev.map((m) =>
-            m.id === id ? { ...m, ...data } : m
-          )
+          prev.map((m) => (m.id === id ? { ...m, ...data } : m))
         );
-      } catch {
+      } catch (e) {
         await refresh();
+        throw e;
       }
     },
-    [refresh]
+    [user, refresh]
   );
 
   useEffect(() => {

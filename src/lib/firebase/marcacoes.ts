@@ -227,14 +227,17 @@ async function fetchAllMarcacoes(max = 200) {
         preferenciaPagamento: (x.preferenciaPagamento as "na_sessao" | "agora") ?? "na_sessao",
         pagamentoRecebido: (x.pagamentoRecebido as boolean) ?? false,
         metodoPagamento: (x.metodoPagamento as "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null) ?? null,
+        motivoCancelamento: x.motivoCancelamento as "cliente_cancela" | "falha_tecnica" | "outro" | undefined,
+        motivoCancelamentoTexto: x.motivoCancelamentoTexto as string | undefined,
+        reagendadoCount: typeof x.reagendadoCount === "number" ? x.reagendadoCount : undefined,
         createdAt: x.createdAt,
         updatedAt: x.updatedAt,
       };
     });
     list.sort((a, b) => {
-      const ta = a.createdAt?.toMillis?.() ?? 0;
-      const tb = b.createdAt?.toMillis?.() ?? 0;
-      return tb - ta;
+      const cmp = (a.data as string).localeCompare(b.data as string);
+      if (cmp !== 0) return cmp;
+      return (a.horaInicio as string).localeCompare(b.horaInicio as string);
     });
     return list.slice(0, max);
   } catch {
@@ -251,7 +254,7 @@ export async function getAllMarcacoes(max = 200) {
   );
 }
 
-/** Atualizar marcação (status, notas, pagamento, reagendamento) */
+/** Atualizar marcação (status, notas, pagamento, reagendamento, motivo cancelamento) */
 export async function updateMarcacao(
   id: string,
   data: {
@@ -262,6 +265,8 @@ export async function updateMarcacao(
     data?: string;
     horaInicio?: string;
     horaFim?: string;
+    motivoCancelamento?: "cliente_cancela" | "falha_tecnica" | "outro";
+    motivoCancelamentoTexto?: string;
   }
 ): Promise<void> {
   if (!db) throw new Error("Firebase não está configurado.");
@@ -281,7 +286,7 @@ async function fetchMarcacoesByClienteEmail(clienteEmail: string) {
   if (!db) return [];
   const normalized = normalizeEmail(clienteEmail);
   const ref = collection(db, COLLECTION);
-  const statusFilter = where("status", "in", ["pendente", "confirmada", "concluida"]);
+  const statusFilter = where("status", "in", ["pendente", "confirmada", "concluida", "cancelada"]);
   // Query por clienteEmailLower (marcações novas) e por clienteEmail (compatibilidade com antigas)
   const [snapNew, snapOld] = await Promise.all([
     getDocs(query(ref, where("clienteEmailLower", "==", normalized), statusFilter)),

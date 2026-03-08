@@ -137,10 +137,12 @@ export async function POST(request: NextRequest) {
     const endMin = (h ?? 0) * 60 + (mh ?? 0) + duracaoMinutos;
     const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
 
+    const reagendadoCount = ((m.reagendadoCount as number) ?? 0) + 1;
     await docRef.update({
       data: body.data,
       horaInicio: body.horaInicio,
       horaFim,
+      reagendadoCount,
       updatedAt: Timestamp.now(),
     });
 

@@ -8,9 +8,8 @@ import Logo from "@/components/Logo";
 
 const NAV = [
   { href: "/admin", label: "Agenda" },
-  { href: "/admin/nova-marcacao", label: "Nova marcação" },
-  { href: "/admin/crm", label: "CRM" },
-  { href: "/admin/financeiro", label: "Financeiro" },
+  { href: "/admin/clientes", label: "Clientes" },
+  { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/configuracoes", label: "Configurações" },
 ];
 

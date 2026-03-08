@@ -179,7 +179,10 @@ export default function ClientePage() {
     (m) => m.status !== "cancelada" && m.data >= new Date().toISOString().slice(0, 10)
   );
   const historico = marcacoes.filter(
-    (m) => m.data < new Date().toISOString().slice(0, 10) || m.status === "concluida"
+    (m) =>
+      m.data < new Date().toISOString().slice(0, 10) ||
+      m.status === "concluida" ||
+      m.status === "cancelada"
   );
 
   return (
@@ -290,11 +293,20 @@ export default function ClientePage() {
                   key={m.id}
                   className="card-elevated p-5 opacity-90"
                 >
-                  <p className="font-medium text-[var(--foreground)]">{m.servicoNome}</p>
-                  <p className="text-sm text-[var(--gray-dark)]">
-                    {formatDate(m.data)} · {m.horaInicio} · {m.duracaoMinutos} min
-                    {m.preco != null && ` · ${m.preco} €`}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-[var(--foreground)]">{m.servicoNome}</p>
+                      <p className="text-sm text-[var(--gray-dark)]">
+                        {formatDate(m.data)} · {m.horaInicio} · {m.duracaoMinutos} min
+                        {m.preco != null && ` · ${m.preco} €`}
+                      </p>
+                    </div>
+                    {m.status === "cancelada" && (
+                      <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                        Cancelada
+                      </span>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

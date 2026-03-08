@@ -27,11 +27,11 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
-/** Skeleton para painéis de cards */
+/** Skeleton para painéis de cards (Agenda: Hoje, 7 dias, Este mês, Próximo mês) */
 export function CardsSkeleton() {
   return (
-    <div className="flex flex-wrap gap-4">
-      {[1, 2].map((i) => (
+    <div className="flex flex-wrap gap-3">
+      {[1, 2, 3, 4].map((i) => (
         <div key={i} className="rounded-lg border border-[#eee] px-4 py-3">
           <div className="mb-1 h-3 w-16 animate-pulse rounded bg-[#eee]" />
           <div className="h-6 w-24 animate-pulse rounded bg-[#ddd]" />
@@ -86,5 +86,26 @@ export function FinanceiroSkeleton() {
         </div>
       </div>
     </>
+  );
+}
+
+/** Skeleton para Dashboard do negócio */
+export function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-24 animate-pulse rounded-xl bg-[#eee]" />
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="h-64 animate-pulse rounded-xl bg-[#eee]" />
+        <div className="h-64 animate-pulse rounded-xl bg-[#eee]" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="h-48 animate-pulse rounded-xl bg-[#eee]" />
+        <div className="h-48 animate-pulse rounded-xl bg-[#eee]" />
+      </div>
+    </div>
   );
 }

@@ -7,12 +7,12 @@ import Logo from "@/components/Logo";
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=1920&q=85&auto=format&fit=crop";
 const SECTION_IMAGES = [
-  /* Ambiente sereno: espaço tranquilo (a preencher - precisa de imagem adequada) */
-  "https://picsum.photos/id/18/600/400",
+  /* Ambiente sereno: espaço tranquilo */
+  "/images/ambiente-sereno.png",
   /* Tratamentos de qualidade: toalhas e tulipas */
   "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80",
-  /* Reservas simples: reserva online (a preencher - precisa de imagem adequada) */
-  "https://picsum.photos/id/119/600/400",
+  /* Reservas simples: reserva online */
+  "/images/reservas-simples.png",
 ];
 
 export default function Home() {

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
+import { getSiteConfig } from "@/lib/firebase/app-settings";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
@@ -27,17 +29,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+const WHATSAPP_FALLBACK = "351910885800";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const config = await getSiteConfig();
+  const phone = (config.telefone?.replace(/\D/g, "") || WHATSAPP_FALLBACK).trim();
+  const hasPhone = phone.length >= 9;
+
   return (
     <html lang="pt">
       <body
         className={`${cormorant.variable} ${dmSans.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
       >
         <Providers>{children}</Providers>
+        {hasPhone && <WhatsAppFloat phoneNumber={phone} />}
       </body>
     </html>
   );

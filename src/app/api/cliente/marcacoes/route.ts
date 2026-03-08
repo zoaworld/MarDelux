@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
     const marcacoesRef = adminDb.collection("marcacoes");
     // Query por clienteEmailLower (novo) e clienteEmail (retrocompatibilidade)
     const [snapNew, snapOld] = await Promise.all([
-      marcacoesRef.where("clienteEmailLower", "==", email).where("status", "in", ["pendente", "confirmada", "concluida"]).get(),
-      marcacoesRef.where("clienteEmail", "==", email).where("status", "in", ["pendente", "confirmada", "concluida"]).get(),
+      marcacoesRef.where("clienteEmailLower", "==", email).where("status", "in", ["pendente", "confirmada", "concluida", "cancelada"]).get(),
+      marcacoesRef.where("clienteEmail", "==", email).where("status", "in", ["pendente", "confirmada", "concluida", "cancelada"]).get(),
     ]);
     const seen = new Set<string>();
     const allDocs = [...snapNew.docs, ...snapOld.docs].filter((d) => {

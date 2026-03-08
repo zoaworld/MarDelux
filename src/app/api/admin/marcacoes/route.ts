@@ -19,7 +19,7 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
 const CACHE = new Map<string, { data: unknown[]; expires: number }>();
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 min
 
-function clearCache() {
+export function clearMarcacoesCache() {
   CACHE.clear();
 }
 
@@ -63,8 +63,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached);
     }
 
+    const GDPR_DELETED_REGEX = /^deleted-.+@gdpr\.local$/;
     const snapshot = await adminDb.collection("marcacoes").get();
-    const list = snapshot.docs.map((d) => {
+    const rawList = snapshot.docs.map((d) => {
       const x = d.data();
       return {
         id: d.id,
@@ -83,13 +84,41 @@ export async function GET(request: NextRequest) {
         preferenciaPagamento: (x.preferenciaPagamento as "na_sessao" | "agora") ?? "na_sessao",
         pagamentoRecebido: (x.pagamentoRecebido as boolean) ?? false,
         metodoPagamento: (x.metodoPagamento as "Dinheiro" | "MB Way" | "Multibanco" | "Cartão" | null) ?? null,
+        motivoCancelamento: x.motivoCancelamento as "cliente_cancela" | "falha_tecnica" | "outro" | undefined,
+        motivoCancelamentoTexto: x.motivoCancelamentoTexto as string | undefined,
+        reagendadoCount: typeof x.reagendadoCount === "number" ? x.reagendadoCount : undefined,
+      };
+    });
+
+    const uniqueEmails = [...new Set(
+      rawList
+        .map((item) => ((item.clienteEmail as string) ?? "").trim().toLowerCase())
+        .filter((e) => e && !GDPR_DELETED_REGEX.test(e))
+    )];
+    const emailToClienteId = new Map<string, string>();
+    const BATCH_SIZE = 30;
+    for (let i = 0; i < uniqueEmails.length; i += BATCH_SIZE) {
+      const batch = uniqueEmails.slice(i, i + BATCH_SIZE);
+      if (batch.length === 0) continue;
+      const q = await adminDb.collection("clientes").where("email", "in", batch).get();
+      q.docs.forEach((doc) => {
+        const email = ((doc.data().email as string) ?? "").toLowerCase();
+        if (email) emailToClienteId.set(email, doc.id);
+      });
+    }
+
+    const list = rawList.map((item) => {
+      const email = ((item.clienteEmail as string) ?? "").trim().toLowerCase();
+      return {
+        ...item,
+        clienteId: (email && !GDPR_DELETED_REGEX.test(email) ? emailToClienteId.get(email) : null) ?? null,
       };
     });
 
     list.sort((a, b) => {
-      const cmp = (b.data as string).localeCompare(a.data as string);
+      const cmp = (a.data as string).localeCompare(b.data as string);
       if (cmp !== 0) return cmp;
-      return (b.horaInicio as string).localeCompare(a.horaInicio as string);
+      return (a.horaInicio as string).localeCompare(b.horaInicio as string);
     });
 
     const result = list.slice(0, 200);
@@ -225,7 +254,7 @@ export async function POST(request: NextRequest) {
       updatedAt: Timestamp.now(),
     });
 
-    clearCache();
+    clearMarcacoesCache();
     void sendConfirmacaoMarcacao({
       clienteEmail: body.clienteEmail.trim(),
       clienteNome: body.clienteNome.trim(),

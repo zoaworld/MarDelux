@@ -1,6 +1,29 @@
 {
   "indexes": [
     {
+      "collectionGroup": "parceiros",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "codigo", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "comissoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "parceiroId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "comissoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "parceiroId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "marcacoes",
       "queryScope": "COLLECTION",
       "fields": [

@@ -13,9 +13,18 @@ import {
 } from "@/lib/firebase";
 import { SlotPicker } from "@/components/ui/SlotPicker";
 import { CancelarMarcacaoModal } from "@/components/admin/CancelarMarcacaoModal";
-import type { Cliente } from "@/types";
+import { ParceiroBadges } from "@/components/admin/ParceiroBadges";
+import type { Cliente, Origem } from "@/types";
 import type { HorarioConfig } from "@/lib/firebase";
 import type { MetodoPagamento } from "@/types";
+
+const ORIGEM_OPCOES: { value: Origem | ""; label: string }[] = [
+  { value: "", label: "—" },
+  { value: "Redes Sociais", label: "Redes Sociais" },
+  { value: "Indicação", label: "Indicação" },
+  { value: "Parceiro", label: "Parceiro" },
+  { value: "Outro", label: "Outro" },
+];
 
 const METODOS_PAGAMENTO: { value: MetodoPagamento; label: string }[] = [
   { value: "Dinheiro", label: "Dinheiro" },
@@ -177,7 +186,11 @@ export default function AdminClienteDetailPage() {
     data: "",
     horaInicio: "",
     preferenciaPagamento: "na_sessao" as "na_sessao" | "agora",
+    codigoParceiro: "",
   });
+  const [parceiroValidado, setParceiroValidado] = useState<{ id: string; nome: string; codigo: string } | null>(null);
+  const [validandoCodigo, setValidandoCodigo] = useState(false);
+  const [erroCodigo, setErroCodigo] = useState<string | null>(null);
   const [slots, setSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -188,6 +201,12 @@ export default function AdminClienteDetailPage() {
   const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showOrigemParceiroPopup, setShowOrigemParceiroPopup] = useState(false);
+  const [origemEditValue, setOrigemEditValue] = useState<string>("");
+  const [origemOutroTexto, setOrigemOutroTexto] = useState("");
+  const [parceiros, setParceiros] = useState<{ id: string; nome: string; codigo: string }[]>([]);
+  const [descontoParceiroMarcacaoId, setDescontoParceiroMarcacaoId] = useState<string | null>(null);
+  const [aplicandoDesconto, setAplicandoDesconto] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [cancelarMarcacaoId, setCancelarMarcacaoId] = useState<string | null>(null);
 
@@ -258,6 +277,63 @@ export default function AdminClienteDetailPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadParceiros = async () => {
+      const token = await user?.getIdToken?.();
+      if (!token) return;
+      try {
+        const res = await fetch("/api/admin/parceiros?estado=ativos", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.ok) return;
+        const list = (await res.json()) as { id: string; nome: string; codigo: string }[];
+        if (!cancelled) setParceiros(list);
+      } catch {
+        /* ignore */
+      }
+    };
+    if (showOrigemParceiroPopup || descontoParceiroMarcacaoId) loadParceiros();
+    return () => { cancelled = true; };
+  }, [user, showOrigemParceiroPopup, descontoParceiroMarcacaoId]);
+
+  const handleAplicarDescontoParceiro = async (marcacaoId: string, parceiroId: string) => {
+    const m = clientMarcacoes.find((x) => x.id === marcacaoId);
+    if (!m || !user) return;
+    const parceiro = parceiros.find((p) => p.id === parceiroId);
+    if (!parceiro) return;
+    const precoOriginal = m.preco ?? 0;
+    const precoFinal = Math.round(precoOriginal * 0.9 * 100) / 100;
+    const descontoParceiro = precoOriginal - precoFinal;
+    setAplicandoDesconto(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/marcacoes/${marcacaoId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          parceiroId: parceiro.id,
+          parceiroCodigo: parceiro.codigo,
+          preco: precoFinal,
+          precoOriginal,
+          descontoParceiro,
+          primeiraSessaoIndicacao: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao aplicar desconto");
+      setDescontoParceiroMarcacaoId(null);
+      await refresh(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAplicandoDesconto(false);
+    }
+  };
+
+  useEffect(() => {
     if (!formMarcacao.data || !selectedServico) {
       setSlots([]);
       return;
@@ -277,6 +353,51 @@ export default function AdminClienteDetailPage() {
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
   }, [formMarcacao.data, selectedServico, horarioConfig]);
+
+  const handleSaveOrigem = async (origemVal: string, parceiroId?: string) => {
+    if (!cliente || !id) return;
+    setSaving("origem");
+    try {
+      const token = await user?.getIdToken?.();
+      if (!token) throw new Error("Sessão expirada");
+      const payload: Record<string, unknown> = {
+        origem: origemVal || null,
+      };
+      if (origemVal === "Parceiro" && parceiroId) {
+        payload.indicadoPorParceiroId = parceiroId;
+      } else if (origemVal !== "Parceiro") {
+        payload.indicadoPorParceiroId = null;
+      }
+      const res = await fetch(`/api/admin/clientes/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Erro ao guardar");
+      setCliente((prev) =>
+        prev
+          ? {
+              ...prev,
+              origem: origemVal || undefined,
+              indicadoPorParceiroId: origemVal === "Parceiro" && parceiroId ? parceiroId : undefined,
+              indicadoPorParceiroNome: origemVal === "Parceiro" && parceiroId
+                ? parceiros.find((p) => p.id === parceiroId)?.nome
+                : undefined,
+            }
+          : null
+      );
+      setEditField(null);
+      setShowOrigemParceiroPopup(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(null);
+    }
+  };
 
   const handleSaveCliente = async (field: string, value: unknown) => {
     if (!cliente || !id) return;
@@ -303,6 +424,38 @@ export default function AdminClienteDetailPage() {
     }
   };
 
+  const validarCodigoParceiro = async () => {
+    const code = formMarcacao.codigoParceiro.trim().toUpperCase();
+    if (!code) {
+      setParceiroValidado(null);
+      setErroCodigo(null);
+      return;
+    }
+    setValidandoCodigo(true);
+    setErroCodigo(null);
+    try {
+      const params = new URLSearchParams({ codigo: code });
+      if (cliente?.email?.trim()) params.set("email", cliente.email.trim());
+      if (cliente?.telefone?.trim()) params.set("telefone", cliente.telefone.trim());
+      const res = await fetch(`/api/parceiros/validar?${params.toString()}`);
+      const data = await res.json();
+      if (data.valido && data.parceiro) {
+        setParceiroValidado({ id: data.parceiro.id, nome: data.parceiro.nome, codigo: data.parceiro.codigo });
+      } else {
+        setParceiroValidado(null);
+        setErroCodigo(data.erroCodigoExclusivo ?? "Código inválido ou inativo.");
+      }
+    } catch {
+      setParceiroValidado(null);
+      setErroCodigo("Não foi possível validar o código.");
+    } finally {
+      setValidandoCodigo(false);
+    }
+  };
+
+  const precoOriginal = selectedServico?.preco ?? 0;
+  const precoFinal = parceiroValidado ? Math.round(precoOriginal * 0.9 * 100) / 100 : precoOriginal;
+
   const handleSaveMarcacao = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cliente || !selectedServico || !formMarcacao.data || !formMarcacao.horaInicio) {
@@ -314,29 +467,39 @@ export default function AdminClienteDetailPage() {
     try {
       const token = await user?.getIdToken?.();
       if (!token) throw new Error("Sessão expirada");
+      const payload: Record<string, unknown> = {
+        clienteNome: cliente.nome,
+        clienteEmail: cliente.email,
+        clienteTelefone: cliente.telefone ?? "",
+        servicoId: selectedServico.id,
+        servicoNome: selectedServico.nome,
+        duracaoMinutos: selectedServico.duracaoMinutos,
+        preco: precoFinal,
+        data: formMarcacao.data,
+        horaInicio: formMarcacao.horaInicio,
+        preferenciaPagamento: formMarcacao.preferenciaPagamento,
+      };
+      if (parceiroValidado) {
+        payload.parceiroId = parceiroValidado.id;
+        payload.parceiroCodigo = parceiroValidado.codigo;
+        payload.precoOriginal = precoOriginal;
+        payload.descontoParceiro = precoOriginal - precoFinal;
+        payload.primeiraSessaoIndicacao = true;
+      }
       const res = await fetch("/api/admin/marcacoes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          clienteNome: cliente.nome,
-          clienteEmail: cliente.email,
-          clienteTelefone: cliente.telefone ?? "",
-          servicoId: selectedServico.id,
-          servicoNome: selectedServico.nome,
-          duracaoMinutos: selectedServico.duracaoMinutos,
-          preco: selectedServico.preco,
-          data: formMarcacao.data,
-          horaInicio: formMarcacao.horaInicio,
-          preferenciaPagamento: formMarcacao.preferenciaPagamento,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Erro ao criar marcação");
       setSuccessMarcacao(true);
-      setFormMarcacao({ servicoId: "", data: "", horaInicio: "", preferenciaPagamento: "na_sessao" });
+      setFormMarcacao({ servicoId: "", data: "", horaInicio: "", preferenciaPagamento: "na_sessao", codigoParceiro: "" });
+      setParceiroValidado(null);
+      setErroCodigo(null);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao criar marcação.");
@@ -430,7 +593,10 @@ export default function AdminClienteDetailPage() {
           <Link href="/admin/clientes" className="text-sm text-[#b76e79] hover:underline">
             ← Clientes
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-[#171717]">{cliente.nome}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-[#171717]">{cliente.nome}</h1>
+            <ParceiroBadges parceiroNome={cliente.indicadoPorParceiroNome} />
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -517,6 +683,36 @@ export default function AdminClienteDetailPage() {
               )}
             </div>
             <div>
+              <p className="text-sm font-medium text-[#171717]">Código de parceiro (opcional)</p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="text"
+                  value={formMarcacao.codigoParceiro}
+                  onChange={(e) => {
+                    setFormMarcacao((f) => ({ ...f, codigoParceiro: e.target.value.toUpperCase() }));
+                    setParceiroValidado(null);
+                    setErroCodigo(null);
+                  }}
+                  placeholder="ex: MARD-LOJA1"
+                  className="flex-1 rounded-lg border border-[#ddd] px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={validarCodigoParceiro}
+                  disabled={validandoCodigo || !formMarcacao.codigoParceiro.trim()}
+                  className="rounded-lg border border-[#ddd] px-4 py-2 text-sm font-medium text-[#666] disabled:opacity-60"
+                >
+                  {validandoCodigo ? "A validar…" : "Aplicar"}
+                </button>
+              </div>
+              {erroCodigo && <p className="mt-1 text-sm text-red-600">{erroCodigo}</p>}
+              {parceiroValidado && (
+                <p className="mt-1 text-sm text-green-600">
+                  10% desconto aplicado · Parceiro: {parceiroValidado.nome} · Preço: {precoOriginal} € → {precoFinal} €
+                </p>
+              )}
+            </div>
+            <div>
               <p className="text-sm font-medium text-[#171717]">Forma de pagamento</p>
               <div className="mt-2 flex gap-3">
                 <button
@@ -560,23 +756,115 @@ export default function AdminClienteDetailPage() {
             </div>
           )}
           {ef("clienteDesde", "Cliente desde", cliente.clienteDesde, "date")}
-          {ef("origem", "Origem", cliente.origem)}
+          <div className="border-b border-[#eee] py-2">
+            <span className="block text-xs text-[#666]">Origem</span>
+            {editField === "origem" ? (
+              <div className="mt-1 space-y-2">
+                <select
+                  value={origemEditValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setOrigemEditValue(v);
+                    if (v === "Parceiro") {
+                      setShowOrigemParceiroPopup(true);
+                    }
+                  }}
+                  className="rounded-lg border border-[#ddd] px-2 py-1.5 text-sm"
+                >
+                  {ORIGEM_OPCOES.map((o) => (
+                    <option key={o.value || "_"} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {origemEditValue === "Outro" && (
+                  <input
+                    type="text"
+                    value={origemOutroTexto}
+                    onChange={(e) => setOrigemOutroTexto(e.target.value)}
+                    placeholder="Especificar..."
+                    className="w-full rounded-lg border border-[#ddd] px-2 py-1.5 text-sm"
+                  />
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const finalVal = origemEditValue === "Outro" && origemOutroTexto.trim()
+                        ? `Outro: ${origemOutroTexto.trim()}`
+                        : origemEditValue;
+                      if (origemEditValue === "Parceiro") {
+                        setShowOrigemParceiroPopup(true);
+                      } else {
+                        handleSaveOrigem(finalVal);
+                        setEditField(null);
+                        setOrigemEditValue("");
+                        setOrigemOutroTexto("");
+                      }
+                    }}
+                    disabled={!!saving}
+                    className="rounded bg-[#b76e79] px-2 py-1 text-sm text-white hover:bg-[#a65d68] disabled:opacity-60"
+                  >
+                    {origemEditValue === "Parceiro" ? "Selecionar parceiro →" : "Guardar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditField(null);
+                      setOrigemEditValue("");
+                      setOrigemOutroTexto("");
+                      setShowOrigemParceiroPopup(false);
+                    }}
+                    className="rounded border border-[#ddd] px-2 py-1 text-sm text-[#666]"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="group mt-0.5 flex cursor-pointer items-center justify-between"
+                onClick={() => {
+                  setEditField("origem");
+                  const ov = cliente.origem ?? "";
+                  setOrigemEditValue(
+                    ["Redes Sociais", "Indicação", "Parceiro", "Outro"].includes(ov)
+                      ? ov
+                      : ov.startsWith("Outro:") ? "Outro" : ov || ""
+                  );
+                  setOrigemOutroTexto(ov.startsWith("Outro:") ? ov.slice(6).trim() : "");
+                }}
+              >
+                <span className="text-sm text-[#171717]">
+                  {cliente.origem === "Parceiro" && cliente.indicadoPorParceiroNome
+                    ? `Parceiro – ${cliente.indicadoPorParceiroNome}`
+                    : cliente.origem || "—"}
+                </span>
+                <span className="text-xs text-[#999] opacity-0 group-hover:opacity-100">editar</span>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-[#171717]">Saúde</h2>
-          {ef("problemasSaude", "Problemas de saúde relevantes", cliente.problemasSaude, "yn")}
-          {ef("medicacao", "Medicação", cliente.medicacao, "yn")}
-          {ef("contraindicatedoes", "Contraindicações", cliente.contraindicatedoes, "yn")}
+          {ef("problemasSaude", "Problemas de saúde relevantes", cliente.problemasSaude, "textarea")}
+          {ef("medicacao", "Medicação", cliente.medicacao, "textarea")}
+          {ef("contraindicatedoes", "Contraindicações", cliente.contraindicatedoes, "textarea")}
           {ef("sensibilidadeDor", "Sensibilidade à dor", cliente.sensibilidadeDor, "select", [
             { value: "", label: "—" },
             { value: "baixa", label: "Baixa" },
             { value: "media", label: "Média" },
             { value: "alta", label: "Alta" },
           ])}
-          {ef("preferenciasAmbiente", "Preferências ambiente", cliente.preferenciasAmbiente, "yn")}
+          {ef("preferenciasAmbiente", "Preferências ambiente", cliente.preferenciasAmbiente, "textarea")}
         </section>
       </div>
+
+      <section className="mt-6 rounded-xl bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-[#171717]">Observações</h2>
+        {ef("reacoes", "Reações (a produtos e técnicas usadas)", cliente.reacoes, "textarea")}
+        {ef("horarioPreferido", "Horário (disponibilidade preferida)", cliente.horarioPreferido, "textarea")}
+        {ef("notasPessoais", "Notas pessoais", cliente.notasPessoais, "textarea")}
+      </section>
 
       <section className="mt-6 rounded-xl bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold text-[#171717]">Histórico</h2>
@@ -719,7 +1007,16 @@ export default function AdminClienteDetailPage() {
                   </div>
                 )}
                 {(m.status === "pendente" || m.status === "confirmada") && (
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {!m.parceiroId && (
+                      <button
+                        type="button"
+                        onClick={() => setDescontoParceiroMarcacaoId(m.id)}
+                        className="text-sm text-[#b76e79] hover:underline"
+                      >
+                        Aplicar desconto parceiro
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setCancelarMarcacaoId(m.id)}
@@ -733,14 +1030,6 @@ export default function AdminClienteDetailPage() {
             ))
           )}
         </div>
-      </section>
-
-      <section className="mt-6 rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-[#171717]">Observações</h2>
-        {ef("preferencias", "Preferências (óleos, aromas, músicas)", cliente.preferencias, "textarea")}
-        {ef("reacoes", "Reações (a produtos e técnicas usadas)", cliente.reacoes, "textarea")}
-        {ef("horarioPreferido", "Horário (disponibilidade preferida)", cliente.horarioPreferido, "textarea")}
-        {ef("notasPessoais", "Notas pessoais", cliente.notasPessoais, "textarea")}
       </section>
 
       {cancelarMarcacaoId && (() => {
@@ -763,6 +1052,84 @@ export default function AdminClienteDetailPage() {
               await refresh(true);
             }}
           />
+        );
+      })()}
+
+      {showOrigemParceiroPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-w-md w-full max-h-[80vh] overflow-auto rounded-xl bg-white p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-[#171717]">Selecionar parceiro (Origem)</h3>
+            <p className="mt-1 text-sm text-[#666]">Escolha o parceiro que indicou este cliente:</p>
+            <ul className="mt-4 space-y-1">
+              {parceiros.length === 0 ? (
+                <li className="py-2 text-sm text-[#666]">A carregar parceiros…</li>
+              ) : (
+                parceiros.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveOrigem("Parceiro", p.id)}
+                      disabled={!!saving}
+                      className="w-full rounded-lg border border-[#eee] px-3 py-2 text-left text-sm hover:bg-[#f5f5f5] disabled:opacity-60"
+                    >
+                      <span className="font-medium text-[#171717]">{p.nome}</span>
+                      <span className="ml-2 font-mono text-xs text-[#666]">{p.codigo}</span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+            <button
+              type="button"
+              onClick={() => { setShowOrigemParceiroPopup(false); setEditField(null); setOrigemEditValue(""); }}
+              className="mt-4 rounded-lg border border-[#ddd] px-4 py-2 text-sm font-medium text-[#666] hover:bg-[#f5f5f5]"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {descontoParceiroMarcacaoId && (() => {
+        const m = clientMarcacoes.find((x) => x.id === descontoParceiroMarcacaoId);
+        if (!m) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="max-w-md w-full max-h-[80vh] overflow-auto rounded-xl bg-white p-6 shadow-lg">
+              <h3 className="text-lg font-semibold text-[#171717]">Aplicar desconto parceiro</h3>
+              <p className="mt-1 text-sm text-[#666]">
+                {m.servicoNome} · {formatDateShort(m.data)} · {m.preco} €
+              </p>
+              <p className="mt-2 text-sm text-[#666]">Selecione o parceiro que indicou esta sessão (10% desconto):</p>
+              <ul className="mt-4 space-y-1">
+                {parceiros.length === 0 ? (
+                  <li className="py-2 text-sm text-[#666]">A carregar parceiros…</li>
+                ) : (
+                  parceiros.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleAplicarDescontoParceiro(m.id, p.id)}
+                        disabled={aplicandoDesconto}
+                        className="w-full rounded-lg border border-[#eee] px-3 py-2 text-left text-sm hover:bg-[#f5f5f5] disabled:opacity-60"
+                      >
+                        <span className="font-medium text-[#171717]">{p.nome}</span>
+                        <span className="ml-2 font-mono text-xs text-[#666]">{p.codigo}</span>
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+              <button
+                type="button"
+                onClick={() => setDescontoParceiroMarcacaoId(null)}
+                disabled={aplicandoDesconto}
+                className="mt-4 rounded-lg border border-[#ddd] px-4 py-2 text-sm font-medium text-[#666] hover:bg-[#f5f5f5] disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         );
       })()}
 

@@ -32,6 +32,13 @@ export type MarcacaoAdmin = {
   motivoCancelamento?: "cliente_cancela" | "falha_tecnica" | "outro";
   motivoCancelamentoTexto?: string;
   reagendadoCount?: number;
+  parceiroId?: string;
+  parceiroCodigo?: string;
+  parceiroNome?: string;
+  /** Nome do parceiro que indicou o cliente (da ficha do cliente), usado quando a marcação não vem de parceiro direto */
+  origemParceiroNome?: string;
+  /** Nome na ficha do cliente (admin) */
+  clienteNomeFicha?: string;
 };
 
 interface AdminDataContextValue {

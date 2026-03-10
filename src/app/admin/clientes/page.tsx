@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { ParceiroBadges } from "@/components/admin/ParceiroBadges";
 
 export type ClienteListItem = {
   id: string;
@@ -10,6 +11,8 @@ export type ClienteListItem = {
   nome: string;
   telefone?: string;
   clienteDesde?: string;
+  indicadoPorParceiroId?: string;
+  indicadoPorParceiroNome?: string;
 };
 
 export default function AdminClientesPage() {
@@ -208,6 +211,7 @@ export default function AdminClientesPage() {
             <thead>
               <tr className="border-b border-[#eee] bg-[#F5F5F5]">
                 <th className="p-3 font-medium text-[#171717]">Nome</th>
+                <th className="p-3 font-medium text-[#171717]">Origem</th>
                 <th className="p-3 font-medium text-[#171717]">Email</th>
                 <th className="p-3 font-medium text-[#171717]">Telefone</th>
                 <th className="p-3 font-medium text-[#171717]">Cliente desde</th>
@@ -217,7 +221,16 @@ export default function AdminClientesPage() {
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.id} className="border-b border-[#eee] hover:bg-[#fafafa]">
-                  <td className="p-3 font-medium text-[#171717]">{c.nome}</td>
+                  <td className="p-3">
+                    <span className="font-medium text-[#171717]">{c.nome}</span>
+                  </td>
+                  <td className="p-3">
+                    {c.indicadoPorParceiroNome ? (
+                      <ParceiroBadges parceiroNome={c.indicadoPorParceiroNome} compact />
+                    ) : (
+                      <span className="text-[#171717]">—</span>
+                    )}
+                  </td>
                   <td className="p-3 text-[#666]">{c.email}</td>
                   <td className="p-3 text-[#666]">{c.telefone ?? "—"}</td>
                   <td className="p-3 text-[#666]">{formatClienteDesde(c.clienteDesde)}</td>

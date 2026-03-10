@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import {
@@ -128,8 +129,16 @@ function horaFim(horaInicio: string, duracaoMinutos: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+interface ParceiroValidado {
+  id: string;
+  nome: string;
+  tipo: "essencial" | "premium";
+  codigo: string;
+}
+
 export default function AgendarFlow() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +148,117 @@ export default function AgendarFlow() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedHora, setSelectedHora] = useState<string | null>(null);
   const [form, setForm] = useState({ nome: "", email: "", telefone: "" });
+  /** Cliente existente resolvido por email+telefone (sem login). Usar nome e id da ficha na marcação. */
+  const [clienteResolvido, setClienteResolvido] = useState<{
+    id: string;
+    nome: string;
+    indicadoPorParceiroNome?: string;
+    indicadoPorParceiroCodigo?: string;
+    indicadoPorParceiroId?: string;
+  } | null>(null);
+  const [perfilCarregado, setPerfilCarregado] = useState(false);
+  const [resolvendoCliente, setResolvendoCliente] = useState(false);
+  const [codigoParceiro, setCodigoParceiro] = useState("");
+  const [parceiroValidado, setParceiroValidado] = useState<ParceiroValidado | null>(null);
+  const [validandoCodigo, setValidandoCodigo] = useState(false);
+  const [erroCodigo, setErroCodigo] = useState<string | null>(null);
+  const [codigoPromo, setCodigoPromo] = useState("");
+  const [codigoPromoValidado, setCodigoPromoValidado] = useState<{
+    id: string;
+    descontoPercentagem: number;
+  } | null>(null);
+  const [validandoCodigoPromo, setValidandoCodigoPromo] = useState(false);
+  const [erroCodigoPromo, setErroCodigoPromo] = useState<string | null>(null);
+
+  // Ler ref da URL e preencher código + validar (sem email/telefone na 1ª carga)
+  useEffect(() => {
+    const ref = searchParams.get("ref")?.trim().toUpperCase();
+    if (!ref) return;
+    setCodigoParceiro(ref);
+    setValidandoCodigo(true);
+    setErroCodigo(null);
+    fetch(`/api/parceiros/validar?codigo=${encodeURIComponent(ref)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.valido && data.parceiro) {
+          setParceiroValidado({
+            id: data.parceiro.id,
+            nome: data.parceiro.nome,
+            tipo: data.parceiro.tipo,
+            codigo: data.parceiro.codigo,
+          });
+        } else {
+          setErroCodigo(
+            data.erroCodigoExclusivo ?? "Código inválido ou inativo."
+          );
+        }
+      })
+      .catch(() => setErroCodigo("Não foi possível validar o código."))
+      .finally(() => setValidandoCodigo(false));
+  }, [searchParams]);
+
+  const validarCodigo = useCallback(async () => {
+    const code = codigoParceiro.trim().toUpperCase();
+    if (!code) {
+      setParceiroValidado(null);
+      setErroCodigo(null);
+      return;
+    }
+    setValidandoCodigo(true);
+    setErroCodigo(null);
+    try {
+      const params = new URLSearchParams({ codigo: code });
+      if (form.email.trim()) params.set("email", form.email.trim());
+      if (form.telefone.trim()) params.set("telefone", form.telefone.trim());
+      const res = await fetch(`/api/parceiros/validar?${params.toString()}`);
+      const data = await res.json();
+      if (data.valido && data.parceiro) {
+        setParceiroValidado({
+          id: data.parceiro.id,
+          nome: data.parceiro.nome,
+          tipo: data.parceiro.tipo,
+          codigo: data.parceiro.codigo,
+        });
+        setCodigoParceiro(data.parceiro.codigo);
+      } else {
+        setParceiroValidado(null);
+        setErroCodigo(
+          data.erroCodigoExclusivo ?? "Código inválido ou inativo."
+        );
+      }
+    } catch {
+      setParceiroValidado(null);
+      setErroCodigo("Não foi possível validar o código.");
+    } finally {
+      setValidandoCodigo(false);
+    }
+  }, [codigoParceiro, form.email, form.telefone]);
+
+  const validarCodigoPromo = useCallback(async () => {
+    const code = codigoPromo.trim().toUpperCase();
+    if (!code) {
+      setCodigoPromoValidado(null);
+      setErroCodigoPromo(null);
+      return;
+    }
+    setValidandoCodigoPromo(true);
+    setErroCodigoPromo(null);
+    try {
+      const res = await fetch(`/api/codigos/validar?codigo=${encodeURIComponent(code)}&tipo=site`);
+      const data = await res.json();
+      if (data.valido && data.descontoPercentagem != null) {
+        setCodigoPromoValidado({ id: data.id, descontoPercentagem: data.descontoPercentagem });
+      } else {
+        setCodigoPromoValidado(null);
+        setErroCodigoPromo(data.erro ?? "Código inválido ou inativo.");
+      }
+    } catch {
+      setCodigoPromoValidado(null);
+      setErroCodigoPromo("Não foi possível validar o código.");
+    } finally {
+      setValidandoCodigoPromo(false);
+    }
+  }, [codigoPromo]);
 
   // Preencher email automaticamente quando o utilizador está logado
   useEffect(() => {
@@ -146,6 +266,77 @@ export default function AgendarFlow() {
       setForm((f) => ({ ...f, email: user.email ?? "" }));
     }
   }, [user?.email, form.email]);
+
+  // Passo 3 com utilizador logado: carregar perfil e preencher nome/telefone (não pedir dados)
+  useEffect(() => {
+    if (step !== 3 || !user) return;
+    let cancelled = false;
+    user.getIdToken().then((token) => {
+      if (cancelled) return;
+      fetch("/api/cliente/perfil", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled || data.error) return;
+          const nome = (data.nome ?? "").trim();
+          const email = (data.email ?? "").trim();
+          const telefone = (data.telefone ?? "").trim();
+          setForm({ nome, email, telefone });
+          setPerfilCarregado(true);
+          // Resolver cliente para obter clienteId e ligar a marcação à ficha
+          if (email && telefone) {
+            const params = new URLSearchParams({ email, telefone });
+            fetch(`/api/agendar/resolver-cliente?${params}`)
+              .then((r2) => r2.json())
+              .then((data2) => {
+                if (!cancelled && data2.encontrado && data2.cliente) {
+                  setClienteResolvido({
+                    id: data2.cliente.id,
+                    nome: data2.cliente.nome ?? nome,
+                    indicadoPorParceiroNome: data2.cliente.indicadoPorParceiroNome,
+                    indicadoPorParceiroCodigo: data2.cliente.indicadoPorParceiroCodigo,
+                    indicadoPorParceiroId: data2.cliente.indicadoPorParceiroId,
+                  });
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [step, user]);
+
+  // Sem login: resolver cliente por email+telefone quando ambos estão preenchidos
+  useEffect(() => {
+    if (user || step !== 3) return;
+    const email = form.email.trim().toLowerCase();
+    const telefone = form.telefone.trim();
+    if (!email || !email.includes("@") || !telefone || telefone.replace(/\D/g, "").length < 6) {
+      setClienteResolvido(null);
+      return;
+    }
+    setResolvendoCliente(true);
+    const params = new URLSearchParams({ email, telefone });
+    fetch(`/api/agendar/resolver-cliente?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.encontrado && data.cliente) {
+          setClienteResolvido({
+            id: data.cliente.id,
+            nome: data.cliente.nome ?? "",
+            indicadoPorParceiroNome: data.cliente.indicadoPorParceiroNome,
+            indicadoPorParceiroCodigo: data.cliente.indicadoPorParceiroCodigo,
+            indicadoPorParceiroId: data.cliente.indicadoPorParceiroId,
+          });
+          setForm((f) => ({ ...f, nome: (data.cliente.nome ?? "").trim() }));
+        } else {
+          setClienteResolvido(null);
+        }
+      })
+      .catch(() => setClienteResolvido(null))
+      .finally(() => setResolvendoCliente(false));
+  }, [step, user, form.email, form.telefone]);
+
   const [preferenciaPagamento, setPreferenciaPagamento] = useState<"na_sessao" | "agora">("na_sessao");
   const [submitting, setSubmitting] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
@@ -183,28 +374,62 @@ export default function AgendarFlow() {
       .finally(() => setLoadingSlots(false));
   }, [step, selectedData, selectedServico, horarioConfig]);
 
+  const precoOriginal = selectedServico?.preco ?? 0;
+  const temDescontoParceiro = !!parceiroValidado;
+  const temDescontoPromo = !!codigoPromoValidado;
+  const precoFinal = temDescontoPromo
+    ? Math.round(precoOriginal * (1 - codigoPromoValidado!.descontoPercentagem / 100) * 100) / 100
+    : temDescontoParceiro
+      ? Math.round(precoOriginal * 0.9 * 100) / 100
+      : precoOriginal;
+
   const handleConfirmar = async () => {
     if (!selectedServico || !selectedData || !selectedHora) return;
-    if (!form.nome.trim() || !form.email.trim()) {
-      setError("Por favor preencha nome e email.");
+    if (!form.nome.trim() || !form.email.trim() || !form.telefone.trim()) {
+      setError("Por favor preencha nome, email e telefone.");
       return;
     }
     setError(null);
     setSubmitting(true);
     try {
       const horaFimCalc = horaFim(selectedHora, selectedServico.duracaoMinutos);
-      const id = await createMarcacao({
+      const marcacaoPayload = {
         clienteNome: form.nome.trim(),
         clienteEmail: form.email.trim(),
         clienteTelefone: form.telefone.trim() || undefined,
+        ...(clienteResolvido?.id && { clienteId: clienteResolvido.id }),
         servicoId: selectedServico.id,
         servicoNome: selectedServico.nome,
         duracaoMinutos: selectedServico.duracaoMinutos,
-        preco: selectedServico.preco,
+        preco: precoFinal,
         data: selectedData,
         horaInicio: selectedHora,
         preferenciaPagamento,
-      });
+        ...(parceiroValidado && !temDescontoPromo && {
+          parceiroId: parceiroValidado.id,
+          parceiroCodigo: parceiroValidado.codigo,
+          precoOriginal: precoOriginal,
+          descontoParceiro: precoOriginal - precoFinal,
+          primeiraSessaoIndicacao: true,
+        }),
+        ...(codigoPromoValidado && {
+          codigoPromocionalId: codigoPromoValidado.id,
+          precoOriginal: precoOriginal,
+          descontoEvento: precoOriginal - precoFinal,
+        }),
+      };
+      const id = await createMarcacao(marcacaoPayload);
+      if (codigoPromoValidado) {
+        try {
+          await fetch("/api/codigos/incrementar-uso", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ codigoId: codigoPromoValidado.id }),
+          });
+        } catch {
+          /* ignorar */
+        }
+      }
       try {
         await fetch("/api/email/confirmacao-marcacao", {
           method: "POST",
@@ -216,7 +441,7 @@ export default function AgendarFlow() {
             horaInicio: selectedHora,
             horaFim: horaFimCalc,
             servicoNome: selectedServico.nome,
-            preco: selectedServico.preco,
+            preco: precoFinal,
           }),
         });
       } catch {
@@ -250,7 +475,7 @@ export default function AgendarFlow() {
               Pagamento por MB Way
             </h3>
             <p className="mt-2 text-sm text-[var(--gray-dark)]">
-              Envie <strong>{selectedServico.preco} €</strong>
+              Envie <strong>{precoFinal} €</strong>
               {mbWayPhone ? (
                 <> para o número <strong>{mbWayPhone}</strong> (MarDelux).</>
               ) : (
@@ -278,7 +503,12 @@ export default function AgendarFlow() {
               setSelectedData(null);
               setSelectedHora(null);
               setForm({ nome: "", email: "", telefone: "" });
+              setPerfilCarregado(false);
+              setClienteResolvido(null);
               setPreferenciaPagamento("na_sessao");
+              setCodigoParceiro("");
+              setParceiroValidado(null);
+              setErroCodigo(null);
             }}
             className="btn-secondary"
           >
@@ -425,22 +655,94 @@ export default function AgendarFlow() {
             ← Alterar data/hora
           </button>
           <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">Confirmação</h2>
+
+          <div className="mt-4 space-y-2">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Tem um código promocional?</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={codigoParceiro}
+                onChange={(e) => {
+                  setCodigoParceiro(e.target.value.toUpperCase());
+                  setParceiroValidado(null);
+                  setErroCodigo(null);
+                }}
+                className="input-elegant flex-1"
+                placeholder="ex: Delux-XX"
+              />
+              <button
+                type="button"
+                onClick={validarCodigo}
+                disabled={validandoCodigo || !codigoParceiro.trim()}
+                className="btn-secondary shrink-0 disabled:opacity-60"
+              >
+                {validandoCodigo ? "A validar…" : "Aplicar"}
+              </button>
+            </div>
+            {erroCodigo && <p className="text-sm text-red-600">{erroCodigo}</p>}
+            {parceiroValidado && !codigoPromoValidado && (
+              <p className="text-sm text-green-700">
+                10% de desconto aplicado (parceiro: {parceiroValidado.nome})
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Código promocional (campanha)?</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={codigoPromo}
+                onChange={(e) => {
+                  setCodigoPromo(e.target.value.toUpperCase());
+                  setCodigoPromoValidado(null);
+                  setErroCodigoPromo(null);
+                }}
+                className="input-elegant flex-1"
+                placeholder="ex: VERAO25"
+              />
+              <button
+                type="button"
+                onClick={validarCodigoPromo}
+                disabled={validandoCodigoPromo || !codigoPromo.trim()}
+                className="btn-secondary shrink-0 disabled:opacity-60"
+              >
+                {validandoCodigoPromo ? "A validar…" : "Aplicar"}
+              </button>
+            </div>
+            {erroCodigoPromo && <p className="text-sm text-red-600">{erroCodigoPromo}</p>}
+            {codigoPromoValidado && (
+              <p className="text-sm text-green-700">
+                {codigoPromoValidado.descontoPercentagem}% de desconto aplicado
+              </p>
+            )}
+          </div>
+
           <div className="mt-4 rounded-xl border-2 border-[var(--rose-gold-light)] bg-[var(--rose-gold-light)]/50 p-5">
             <p className="font-semibold text-[var(--foreground)]">{selectedServico.nome}</p>
             <p className="mt-1 text-sm text-[var(--gray-dark)]">
               {formatDate(selectedData)}
             </p>
             <p className="text-sm font-medium text-[var(--rose-gold)]">
-              {selectedHora} – {horaFim(selectedHora, selectedServico.duracaoMinutos)} · {selectedServico.duracaoMinutos} min · {selectedServico.preco} €
+              {selectedHora} – {horaFim(selectedHora, selectedServico.duracaoMinutos)} · {selectedServico.duracaoMinutos} min
+              {(temDescontoParceiro || temDescontoPromo) ? (
+                <>
+                  {" "}
+                  <span className="line-through text-[var(--gray-mid)]">{precoOriginal} €</span>{" "}
+                  <span>{precoFinal} €</span>{" "}
+                  <span className="text-xs text-green-700">
+                    (-{temDescontoPromo ? codigoPromoValidado!.descontoPercentagem : 10}%)
+                  </span>
+                </>
+              ) : (
+                <> · {precoOriginal} €</>
+              )}
             </p>
           </div>
 
           <div className="mt-6">
-            <p className="text-sm font-semibold text-[var(--foreground)]">
-              Quando prefere liquidar?
-            </p>
-            <p className="mt-1 text-sm text-[var(--gray-dark)]">
-              Pode pagar na sessão ou já agora, conforme for mais conveniente.
+            <p className="text-sm text-[var(--gray-dark)]">
+              Pode pagar durante a sessão ou agora por MB Way, conforme for mais conveniente.
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <button
@@ -452,7 +754,7 @@ export default function AgendarFlow() {
                     : "border-[var(--gray-light)] text-[var(--foreground)] hover:border-[var(--rose-gold)]/40"
                 }`}
               >
-                Na sessão ou na próxima visita
+                Na sessão
               </button>
               <button
                 type="button"
@@ -469,36 +771,75 @@ export default function AgendarFlow() {
           </div>
 
           <div className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-[var(--foreground)]">Nome *</label>
-              <input
-                type="text"
-                value={form.nome}
-                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                className="input-elegant mt-1"
-                placeholder="O seu nome"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[var(--foreground)]">Email *</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="input-elegant mt-1"
-                placeholder="o seu@email.pt"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[var(--foreground)]">Telefone</label>
-              <input
-                type="tel"
-                value={form.telefone}
-                onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
-                className="input-elegant mt-1"
-                placeholder="Opcional"
-              />
-            </div>
+            {user && perfilCarregado ? (
+              <div className="rounded-xl border-2 border-[var(--gray-light)] bg-[var(--gray-light)]/30 p-4">
+                <p className="text-sm font-semibold text-[var(--foreground)]">A marcar como</p>
+                <p className="mt-1 text-[var(--gray-dark)]">
+                  {form.nome || "—"} · {form.email || "—"} · {form.telefone || "—"}
+                </p>
+                {(clienteResolvido?.indicadoPorParceiroNome || clienteResolvido?.indicadoPorParceiroCodigo) && (
+                  <p className="mt-2 text-sm text-[var(--gray-dark)]">
+                    Código de parceiro utilizado:{" "}
+                    <span className="font-medium text-[var(--foreground)]">
+                      {clienteResolvido.indicadoPorParceiroCodigo ?? "—"}
+                    </span>
+                    {clienteResolvido.indicadoPorParceiroNome && (
+                      <> — {clienteResolvido.indicadoPorParceiroNome}</>
+                    )}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-[var(--gray-mid)]">
+                  Os dados são os da sua conta. Para alterar, edite o seu perfil na área de cliente.
+                </p>
+              </div>
+            ) : (
+              <>
+                {clienteResolvido && (
+                  <div className="rounded-xl border-2 border-[var(--rose-gold-light)] bg-[var(--rose-gold-light)]/30 p-3">
+                    <p className="text-sm font-medium text-[var(--foreground)]">
+                      Cliente reconhecido: utilizamos os dados da sua ficha
+                      {clienteResolvido.indicadoPorParceiroNome
+                        ? ` (origem: ${clienteResolvido.indicadoPorParceiroNome})`
+                        : ""}.
+                    </p>
+                    {resolvendoCliente && (
+                      <p className="mt-1 text-xs text-[var(--gray-mid)]">A verificar…</p>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--foreground)]">Nome *</label>
+                  <input
+                    type="text"
+                    value={form.nome}
+                    onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                    className="input-elegant mt-1"
+                    placeholder="O seu nome"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--foreground)]">Email *</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    className="input-elegant mt-1"
+                    placeholder="o seu@email.pt"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--foreground)]">Telefone *</label>
+                  <input
+                    type="tel"
+                    value={form.telefone}
+                    onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
+                    className="input-elegant mt-1"
+                    placeholder="ex: 912 345 678"
+                    required
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {error && (
@@ -509,10 +850,14 @@ export default function AgendarFlow() {
             <button
               type="button"
               onClick={handleConfirmar}
-              disabled={submitting}
+              disabled={submitting || (!!user && !perfilCarregado)}
               className="btn-primary disabled:opacity-60"
             >
-              {submitting ? "A guardar…" : "Confirmar marcação"}
+              {user && !perfilCarregado
+                ? "A carregar…"
+                : submitting
+                  ? "A guardar…"
+                  : "Confirmar marcação"}
             </button>
           </div>
         </div>

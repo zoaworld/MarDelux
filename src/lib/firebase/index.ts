@@ -33,3 +33,28 @@ export {
   type BlocoOcupado,
   type IntervaloDisponivel,
 } from "./marcacoes";
+export {
+  getEventosAdmin,
+  getEventosPublicos,
+  getEventoById,
+  getEventoBySlug,
+  createEvento,
+  updateEvento,
+  deleteEvento,
+  generateSlug,
+  type EventoInput,
+} from "./eventos";
+export {
+  getHomeCards,
+  setHomeCards,
+  type HomeCardInput,
+} from "./home-cards";
+export {
+  getCodigosPromocionais,
+  getCodigoPromocionalById,
+  getCodigoByCodigo,
+  createCodigoPromocional,
+  updateCodigoPromocional,
+  incrementarUsoCodigo,
+  type CodigoPromocionalInput,
+} from "./codigos-promocionais";

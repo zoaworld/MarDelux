@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import AgendarFlow from "@/components/agendar/AgendarFlow";
 import Logo from "@/components/Logo";
@@ -33,7 +34,9 @@ export default function AgendarPage() {
           Escolha o serviço, a data e a hora. Confirmamos a reserva por email.
         </p>
         <div className="mt-8">
-          <AgendarFlow />
+          <Suspense fallback={<p className="text-[var(--gray-mid)]">A carregar…</p>}>
+            <AgendarFlow />
+          </Suspense>
         </div>
       </div>
     </div>

@@ -32,16 +32,16 @@ function toCliente(doc: FirebaseFirestore.DocumentSnapshot): Record<string, unkn
     id: doc.id,
     email: (x?.email as string) ?? "",
     nome: (x?.nome as string) ?? "",
+    indicadoPorParceiroId: x?.indicadoPorParceiroId as string | undefined,
     telefone: x?.telefone as string | undefined,
     dataNascimento: x?.dataNascimento as string | undefined,
     clienteDesde: x?.clienteDesde as string | undefined,
     origem: x?.origem as string | undefined,
-    problemasSaude: x?.problemasSaude as boolean | undefined,
-    medicacao: x?.medicacao as boolean | undefined,
-    contraindicatedoes: x?.contraindicatedoes as boolean | undefined,
+    problemasSaude: x?.problemasSaude as string | undefined,
+    medicacao: x?.medicacao as string | undefined,
+    contraindicatedoes: x?.contraindicatedoes as string | undefined,
     sensibilidadeDor: x?.sensibilidadeDor as string | undefined,
-    preferenciasAmbiente: x?.preferenciasAmbiente as boolean | undefined,
-    preferencias: x?.preferencias as string | undefined,
+    preferenciasAmbiente: x?.preferenciasAmbiente as string | undefined,
     reacoes: x?.reacoes as string | undefined,
     horarioPreferido: x?.horarioPreferido as string | undefined,
     notasPessoais: x?.notasPessoais as string | undefined,
@@ -66,39 +66,65 @@ export async function GET(request: NextRequest) {
 
     // Sincronizar: criar cliente para cada email em marcações que ainda não existe
     const marcacoesSnap = await adminDb.collection("marcacoes").get();
-    const emailsFromMarcacoes = new Map<string, { nome: string; telefone?: string; minData: string }>();
+    const emailsFromMarcacoes = new Map<string, { nome: string; telefone?: string; minData: string; parceiroId?: string }>();
     marcacoesSnap.docs.forEach((d) => {
       const x = d.data();
       const email = ((x.clienteEmail as string) ?? "").trim().toLowerCase();
       if (!email || GDPR_DELETED_REGEX.test(email)) return;
       const data = (x.data as string) ?? "";
+      const parceiroId = x.parceiroId as string | undefined;
       const existing = emailsFromMarcacoes.get(email);
       if (!existing || data < existing.minData) {
         emailsFromMarcacoes.set(email, {
           nome: (x.clienteNome as string) ?? "",
           telefone: x.clienteTelefone as string | undefined,
           minData: data,
+          parceiroId: parceiroId ?? existing?.parceiroId,
         });
       }
     });
 
     for (const [email, info] of emailsFromMarcacoes) {
       if (clientesMap.has(email)) continue;
-      const ref = await adminDb.collection("clientes").add({
+      const docData: Record<string, unknown> = {
         email,
         nome: info.nome,
         telefone: info.telefone ?? null,
         clienteDesde: info.minData,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-      });
+      };
+      if (info.parceiroId) {
+        docData.indicadoPorParceiroId = info.parceiroId;
+        docData.origem = "Parceiro";
+      }
+      const ref = await adminDb.collection("clientes").add(docData);
       const newDoc = await ref.get();
       if (newDoc.exists) clientesMap.set(email, newDoc);
     }
 
-    const list = Array.from(clientesMap.values())
+    const rawList = Array.from(clientesMap.values())
       .filter((d) => !GDPR_DELETED_REGEX.test(((d.data()?.email as string) ?? "").toLowerCase()))
       .map(toCliente);
+
+    const uniqueParceiroIds = [...new Set(
+      rawList
+        .map((c) => c.indicadoPorParceiroId as string | undefined)
+        .filter((id): id is string => Boolean(id))
+    )];
+    const parceiroIdToNome = new Map<string, string>();
+    for (const pid of uniqueParceiroIds) {
+      const doc = await adminDb.collection("parceiros").doc(pid).get();
+      const nome = doc.data()?.nome as string | undefined;
+      if (nome) parceiroIdToNome.set(pid, nome);
+    }
+
+    const list = rawList.map((c) => ({
+      ...c,
+      indicadoPorParceiroNome: (c.indicadoPorParceiroId as string | undefined)
+        ? parceiroIdToNome.get(c.indicadoPorParceiroId as string)
+        : undefined,
+    })) as Array<Record<string, unknown>>;
     list.sort((a, b) => (a.nome as string).localeCompare(b.nome as string));
     return NextResponse.json(list);
   } catch (err) {

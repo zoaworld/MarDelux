@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import HeaderAdminLink from "@/components/HeaderAdminLink";
 import Logo from "@/components/Logo";
+import HomeCardsSection from "@/components/home/HomeCardsSection";
 
 /* Hero: pedras de spa (imagem principal) */
 const HERO_IMAGE =
@@ -94,6 +95,9 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Destaques (cards editáveis) */}
+        <HomeCardsSection />
 
         {/* Porquê nós */}
         <section className="mx-auto max-w-6xl px-4 py-20 md:px-8 md:py-28">

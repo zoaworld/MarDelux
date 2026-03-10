@@ -7,6 +7,7 @@ import { useAdminData } from "@/contexts/AdminDataContext";
 import { TableSkeleton, CardsSkeleton } from "@/components/admin/AdminSkeleton";
 import { ReagendarModal } from "@/components/admin/ReagendarModal";
 import { CancelarMarcacaoModal } from "@/components/admin/CancelarMarcacaoModal";
+import { ParceiroBadges } from "@/components/admin/ParceiroBadges";
 import type { MetodoPagamento } from "@/types";
 
 const METODOS_PAGAMENTO: { value: MetodoPagamento; label: string }[] = [
@@ -208,6 +209,7 @@ export default function AdminAgendaPage() {
               <tr className="sticky top-0 z-[1] border-b border-[#eee] bg-[#F8F8F8]">
                 <th className="p-3 font-medium text-[#171717]">Data</th>
                 <th className="p-3 font-medium text-[#171717]">Hora</th>
+                <th className="p-3 font-medium text-[#171717]">Origem</th>
                 <th className="p-3 font-medium text-[#171717]">Cliente</th>
                 <th className="p-3 font-medium text-[#171717]">Serviço</th>
                 <th className="p-3 font-medium text-[#171717]">Valor</th>
@@ -222,18 +224,27 @@ export default function AdminAgendaPage() {
                   <td className="p-3 text-[#171717]">{formatDate(m.data)}</td>
                   <td className="p-3 text-[#666]">{m.horaInicio} – {m.horaFim}</td>
                   <td className="p-3">
+                    {m.parceiroNome || m.parceiroCodigo ? (
+                      <ParceiroBadges parceiroNome={m.parceiroNome} parceiroCodigo={m.parceiroCodigo} compact />
+                    ) : m.origemParceiroNome ? (
+                      <ParceiroBadges parceiroNome={m.origemParceiroNome} compact />
+                    ) : (
+                      <span className="text-[#171717]">—</span>
+                    )}
+                  </td>
+                  <td className="p-3">
                     {m.clienteId ? (
                       <Link
                         href={`/admin/clientes/${m.clienteId}`}
                         className="block text-[#b76e79] hover:underline"
                       >
-                        <span className="font-medium">{m.clienteNome}</span>
+                        <span className="font-medium">{m.clienteNomeFicha ?? m.clienteNome}</span>
                         <br />
                         <span className="text-xs opacity-90">{m.clienteEmail}</span>
                       </Link>
                     ) : (
                       <>
-                        <span className="font-medium text-[#171717]">{m.clienteNome}</span>
+                        <span className="font-medium text-[#171717]">{m.clienteNomeFicha ?? m.clienteNome}</span>
                         <br />
                         <span className="text-xs text-[#666]">{m.clienteEmail}</span>
                       </>
@@ -379,7 +390,7 @@ export default function AdminAgendaPage() {
           <ReagendarModal
             marcacao={{
               id: m.id,
-              clienteNome: m.clienteNome,
+              clienteNome: m.clienteNomeFicha ?? m.clienteNome,
               servicoNome: m.servicoNome,
               data: m.data,
               horaInicio: m.horaInicio,
@@ -399,7 +410,7 @@ export default function AdminAgendaPage() {
         return (
           <CancelarMarcacaoModal
             marcacaoResumo={{
-              clienteNome: m.clienteNome,
+              clienteNome: m.clienteNomeFicha ?? m.clienteNome,
               servicoNome: m.servicoNome,
               data: m.data,
               horaInicio: m.horaInicio,

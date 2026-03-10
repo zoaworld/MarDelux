@@ -219,12 +219,17 @@ export default function ClientePage() {
           Para nova reserva use o mesmo email que registou.
         </p>
 
-        <div className="mt-8 flex flex-wrap gap-4">
-          <Link href="/agendar" className="btn-primary">
-            Nova marcação
-          </Link>
-          <Link href="/cliente/servicos" className="btn-secondary">
-            Comprar serviços e packs
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-4">
+            <Link href="/agendar" className="btn-primary">
+              Nova marcação
+            </Link>
+            <Link href="/cliente/servicos" className="btn-secondary">
+              Comprar serviços e packs
+            </Link>
+          </div>
+          <Link href="/cliente/conta" className="btn-secondary">
+            Editar Conta
           </Link>
         </div>
 

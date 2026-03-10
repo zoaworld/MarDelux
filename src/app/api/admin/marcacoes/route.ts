@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       const x = d.data();
       return {
         id: d.id,
+        clienteIdFromDoc: x.clienteId as string | undefined,
         clienteEmail: (x.clienteEmail as string) ?? "",
         clienteNome: (x.clienteNome as string) ?? "",
         clienteTelefone: x.clienteTelefone as string | undefined,
@@ -87,6 +88,11 @@ export async function GET(request: NextRequest) {
         motivoCancelamento: x.motivoCancelamento as "cliente_cancela" | "falha_tecnica" | "outro" | undefined,
         motivoCancelamentoTexto: x.motivoCancelamentoTexto as string | undefined,
         reagendadoCount: typeof x.reagendadoCount === "number" ? x.reagendadoCount : undefined,
+        parceiroId: x.parceiroId as string | undefined,
+        parceiroCodigo: x.parceiroCodigo as string | undefined,
+        precoOriginal: typeof x.precoOriginal === "number" ? x.precoOriginal : undefined,
+        descontoParceiro: typeof x.descontoParceiro === "number" ? x.descontoParceiro : undefined,
+        primeiraSessaoIndicacao: x.primeiraSessaoIndicacao as boolean | undefined,
       };
     });
 
@@ -96,22 +102,67 @@ export async function GET(request: NextRequest) {
         .filter((e) => e && !GDPR_DELETED_REGEX.test(e))
     )];
     const emailToClienteId = new Map<string, string>();
+    const clienteIdToFicha = new Map<string, { nome: string; indicadoPorParceiroId?: string }>();
     const BATCH_SIZE = 30;
     for (let i = 0; i < uniqueEmails.length; i += BATCH_SIZE) {
       const batch = uniqueEmails.slice(i, i + BATCH_SIZE);
       if (batch.length === 0) continue;
       const q = await adminDb.collection("clientes").where("email", "in", batch).get();
       q.docs.forEach((doc) => {
-        const email = ((doc.data().email as string) ?? "").toLowerCase();
+        const d = doc.data();
+        const email = ((d.email as string) ?? "").toLowerCase();
         if (email) emailToClienteId.set(email, doc.id);
+        clienteIdToFicha.set(doc.id, {
+          nome: (d.nome as string) ?? "",
+          indicadoPorParceiroId: d.indicadoPorParceiroId as string | undefined,
+        });
       });
+    }
+
+    // ClienteIds que vêm no documento da marcação (criadas pelo fluxo com ficha resolvida)
+    const uniqueClienteIdsFromDocs = [...new Set(
+      rawList
+        .map((item) => item.clienteIdFromDoc as string | undefined)
+        .filter((id): id is string => Boolean(id))
+    )];
+    for (const cid of uniqueClienteIdsFromDocs) {
+      if (clienteIdToFicha.has(cid)) continue;
+      const clientDoc = await adminDb.collection("clientes").doc(cid).get();
+      if (clientDoc.exists) {
+        const d = clientDoc.data();
+        clienteIdToFicha.set(cid, {
+          nome: (d?.nome as string) ?? "",
+          indicadoPorParceiroId: d?.indicadoPorParceiroId as string | undefined,
+        });
+      }
+    }
+
+    const uniqueParceiroIds = new Set(
+      rawList
+        .map((item) => item.parceiroId as string | undefined)
+        .filter((id): id is string => Boolean(id))
+    );
+    for (const [, ficha] of clienteIdToFicha) {
+      if (ficha.indicadoPorParceiroId) uniqueParceiroIds.add(ficha.indicadoPorParceiroId);
+    }
+    const parceiroIdToNome = new Map<string, string>();
+    for (const pid of uniqueParceiroIds) {
+      const doc = await adminDb.collection("parceiros").doc(pid).get();
+      const nome = doc.data()?.nome as string | undefined;
+      if (nome) parceiroIdToNome.set(pid, nome);
     }
 
     const list = rawList.map((item) => {
       const email = ((item.clienteEmail as string) ?? "").trim().toLowerCase();
+      const parceiroId = item.parceiroId as string | undefined;
+      const clienteId = (item.clienteIdFromDoc ?? (email && !GDPR_DELETED_REGEX.test(email) ? emailToClienteId.get(email) : null)) ?? null;
+      const ficha = clienteId ? clienteIdToFicha.get(clienteId) : undefined;
       return {
         ...item,
-        clienteId: (email && !GDPR_DELETED_REGEX.test(email) ? emailToClienteId.get(email) : null) ?? null,
+        clienteId,
+        clienteNomeFicha: ficha?.nome,
+        origemParceiroNome: ficha?.indicadoPorParceiroId ? parceiroIdToNome.get(ficha.indicadoPorParceiroId) : undefined,
+        parceiroNome: parceiroId ? parceiroIdToNome.get(parceiroId) : undefined,
       };
     });
 
@@ -169,6 +220,11 @@ export async function POST(request: NextRequest) {
       data: string;
       horaInicio: string;
       preferenciaPagamento?: "na_sessao" | "agora";
+      parceiroId?: string;
+      parceiroCodigo?: string;
+      precoOriginal?: number;
+      descontoParceiro?: number;
+      primeiraSessaoIndicacao?: boolean;
     };
 
     if (!body.clienteNome?.trim() || !body.clienteEmail?.trim() || !body.servicoId || !body.data || !body.horaInicio) {
@@ -235,7 +291,7 @@ export async function POST(request: NextRequest) {
     const endMin = (h ?? 0) * 60 + (m ?? 0) + body.duracaoMinutos;
     const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
 
-    const docRef = await adminDb.collection("marcacoes").add({
+    const docData: Record<string, unknown> = {
       clienteEmail: body.clienteEmail.trim(),
       clienteNome: body.clienteNome.trim(),
       clienteTelefone: body.clienteTelefone?.trim() || null,
@@ -252,7 +308,14 @@ export async function POST(request: NextRequest) {
       metodoPagamento: null,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
-    });
+    };
+    if (body.parceiroId) docData.parceiroId = body.parceiroId;
+    if (body.parceiroCodigo) docData.parceiroCodigo = body.parceiroCodigo;
+    if (typeof body.precoOriginal === "number") docData.precoOriginal = body.precoOriginal;
+    if (typeof body.descontoParceiro === "number") docData.descontoParceiro = body.descontoParceiro;
+    if (body.primeiraSessaoIndicacao === true) docData.primeiraSessaoIndicacao = true;
+
+    const docRef = await adminDb.collection("marcacoes").add(docData);
 
     clearMarcacoesCache();
     void sendConfirmacaoMarcacao({

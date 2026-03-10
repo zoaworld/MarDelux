@@ -33,16 +33,16 @@ function toCliente(doc: FirebaseFirestore.DocumentSnapshot): Record<string, unkn
     id: doc.id,
     email: (x?.email as string) ?? "",
     nome: (x?.nome as string) ?? "",
+    indicadoPorParceiroId: x?.indicadoPorParceiroId as string | undefined,
     telefone: x?.telefone as string | undefined,
     dataNascimento: x?.dataNascimento as string | undefined,
     clienteDesde: x?.clienteDesde as string | undefined,
     origem: x?.origem as string | undefined,
-    problemasSaude: x?.problemasSaude as boolean | undefined,
-    medicacao: x?.medicacao as boolean | undefined,
-    contraindicatedoes: x?.contraindicatedoes as boolean | undefined,
+    problemasSaude: x?.problemasSaude as string | undefined,
+    medicacao: x?.medicacao as string | undefined,
+    contraindicatedoes: x?.contraindicatedoes as string | undefined,
     sensibilidadeDor: x?.sensibilidadeDor as string | undefined,
-    preferenciasAmbiente: x?.preferenciasAmbiente as boolean | undefined,
-    preferencias: x?.preferencias as string | undefined,
+    preferenciasAmbiente: x?.preferenciasAmbiente as string | undefined,
     reacoes: x?.reacoes as string | undefined,
     horarioPreferido: x?.horarioPreferido as string | undefined,
     notasPessoais: x?.notasPessoais as string | undefined,
@@ -65,7 +65,13 @@ export async function GET(
     if (!doc.exists) {
       return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
     }
-    return NextResponse.json(toCliente(doc));
+    const cliente = toCliente(doc);
+    const parceiroId = cliente.indicadoPorParceiroId as string | undefined;
+    if (parceiroId) {
+      const parceiroDoc = await adminDb.collection("parceiros").doc(parceiroId).get();
+      cliente.indicadoPorParceiroNome = parceiroDoc.data()?.nome as string | undefined;
+    }
+    return NextResponse.json(cliente);
   } catch (err) {
     console.error("[api/admin/clientes/[id] GET]", err);
     return NextResponse.json({ error: "Erro ao carregar cliente" }, { status: 503 });
@@ -84,9 +90,9 @@ export async function PATCH(
 
     const body = (await request.json()) as Record<string, unknown>;
     const allowed: (keyof typeof body)[] = [
-      "nome", "telefone", "dataNascimento", "clienteDesde", "origem",
+      "nome", "telefone", "dataNascimento", "clienteDesde", "origem", "indicadoPorParceiroId",
       "problemasSaude", "medicacao", "contraindicatedoes", "sensibilidadeDor",
-      "preferenciasAmbiente", "preferencias", "reacoes", "horarioPreferido", "notasPessoais",
+      "preferenciasAmbiente", "reacoes", "horarioPreferido", "notasPessoais",
     ];
     const update: Record<string, unknown> = { updatedAt: Timestamp.now() };
     for (const k of allowed) {

@@ -19,6 +19,8 @@ export interface MarcacaoInput {
   clienteEmail: string;
   clienteNome: string;
   clienteTelefone?: string;
+  /** Quando existe ficha do cliente (match email+telefone), enviar id para ligar a marcação à ficha */
+  clienteId?: string;
   servicoId: string;
   servicoNome: string;
   duracaoMinutos: number;
@@ -27,6 +29,18 @@ export interface MarcacaoInput {
   horaInicio: string; // HH:mm
   /** Escolha do cliente: na_sessao (default) ou agora (MB Way) */
   preferenciaPagamento?: "na_sessao" | "agora";
+  /** Parceiro que indicou (referral) */
+  parceiroId?: string;
+  parceiroCodigo?: string;
+  precoOriginal?: number;
+  descontoParceiro?: number;
+  primeiraSessaoIndicacao?: boolean;
+  /** Evento associado (checkout de evento) */
+  eventoId?: string;
+  /** Código promocional usado (evento ou site) */
+  codigoPromocionalId?: string;
+  /** Desconto em € aplicado por código promocional */
+  descontoEvento?: number;
 }
 
 function timeToMinutes(h: string): number {
@@ -230,6 +244,11 @@ async function fetchAllMarcacoes(max = 200) {
         motivoCancelamento: x.motivoCancelamento as "cliente_cancela" | "falha_tecnica" | "outro" | undefined,
         motivoCancelamentoTexto: x.motivoCancelamentoTexto as string | undefined,
         reagendadoCount: typeof x.reagendadoCount === "number" ? x.reagendadoCount : undefined,
+        parceiroId: x.parceiroId as string | undefined,
+        parceiroCodigo: x.parceiroCodigo as string | undefined,
+        precoOriginal: typeof x.precoOriginal === "number" ? x.precoOriginal : undefined,
+        descontoParceiro: typeof x.descontoParceiro === "number" ? x.descontoParceiro : undefined,
+        primeiraSessaoIndicacao: x.primeiraSessaoIndicacao as boolean | undefined,
         createdAt: x.createdAt,
         updatedAt: x.updatedAt,
       };
@@ -354,7 +373,7 @@ export async function createMarcacao(input: MarcacaoInput): Promise<string> {
   const preferenciaPagamento = input.preferenciaPagamento ?? "na_sessao";
 
   const clienteEmailNorm = normalizeEmail(input.clienteEmail);
-  const docRef = await addDoc(collection(db, COLLECTION), {
+  const docData: Record<string, unknown> = {
     clienteEmail: input.clienteEmail.trim(),
     clienteEmailLower: clienteEmailNorm,
     clienteNome: input.clienteNome,
@@ -372,7 +391,18 @@ export async function createMarcacao(input: MarcacaoInput): Promise<string> {
     metodoPagamento: null,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
-  });
+  };
+  if (input.clienteId) docData.clienteId = input.clienteId;
+  if (input.parceiroId) docData.parceiroId = input.parceiroId;
+  if (input.parceiroCodigo) docData.parceiroCodigo = input.parceiroCodigo;
+  if (typeof input.precoOriginal === "number") docData.precoOriginal = input.precoOriginal;
+  if (typeof input.descontoParceiro === "number") docData.descontoParceiro = input.descontoParceiro;
+  if (input.primeiraSessaoIndicacao === true) docData.primeiraSessaoIndicacao = true;
+  if (input.eventoId) docData.eventoId = input.eventoId;
+  if (input.codigoPromocionalId) docData.codigoPromocionalId = input.codigoPromocionalId;
+  if (typeof input.descontoEvento === "number") docData.descontoEvento = input.descontoEvento;
+
+  const docRef = await addDoc(collection(db, COLLECTION), docData);
   invalidate(CACHE_KEYS.marcacoes);
   invalidate(getCacheKeyForEmail(clienteEmailNorm));
   return docRef.id;

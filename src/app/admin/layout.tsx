@@ -9,6 +9,9 @@ import Logo from "@/components/Logo";
 const NAV = [
   { href: "/admin", label: "Agenda" },
   { href: "/admin/clientes", label: "Clientes" },
+  { href: "/admin/parceiros", label: "Parceiros" },
+  { href: "/admin/eventos", label: "Eventos" },
+  { href: "/admin/home-cards", label: "Destaques" },
   { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/configuracoes", label: "Configurações" },
 ];

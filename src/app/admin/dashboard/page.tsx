@@ -17,6 +17,8 @@ export default function AdminDashboardPage() {
   const { user } = useAuth();
   const { marcacoes, loading } = useAdminData();
   const [clientesCount, setClientesCount] = useState<number | null>(null);
+  const [parceirosCount, setParceirosCount] = useState<number | null>(null);
+  const [comissoesPendentes, setComissoesPendentes] = useState<number | null>(null);
 
   const fetchClientesCount = useCallback(async () => {
     const token = await user?.getIdToken?.();
@@ -36,9 +38,39 @@ export default function AdminDashboardPage() {
     }
   }, [user]);
 
+  const fetchParceirosAndComissoes = useCallback(async () => {
+    const token = await user?.getIdToken?.();
+    if (!token) return;
+    try {
+      const [parRes, comRes] = await Promise.all([
+        fetch("/api/admin/parceiros", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/admin/comissoes?status=pendente", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (parRes.ok) {
+        const list = (await parRes.json()) as { id: string }[];
+        setParceirosCount(list.length);
+      } else {
+        setParceirosCount(0);
+      }
+      if (comRes.ok) {
+        const list = (await comRes.json()) as { valorComissao: number }[];
+        setComissoesPendentes(list.reduce((s, c) => s + c.valorComissao, 0));
+      } else {
+        setComissoesPendentes(0);
+      }
+    } catch {
+      setParceirosCount(0);
+      setComissoesPendentes(0);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchClientesCount();
   }, [fetchClientesCount]);
+
+  useEffect(() => {
+    fetchParceirosAndComissoes();
+  }, [fetchParceirosAndComissoes]);
 
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date();
@@ -131,6 +163,24 @@ export default function AdminDashboardPage() {
                 {totalPendente.toFixed(2)} €
               </p>
             </div>
+            <Link
+              href="/admin/parceiros"
+              className="rounded-xl border border-[#eee] bg-white p-5 shadow-sm transition hover:border-[#b76e79]/30 hover:shadow-md"
+            >
+              <p className="text-sm text-[#666]">Parceiros ativos</p>
+              <p className="mt-1 text-2xl font-semibold text-[#171717]">
+                {parceirosCount === null ? "…" : parceirosCount}
+              </p>
+            </Link>
+            <Link
+              href="/admin/parceiros/financeiro"
+              className="rounded-xl border border-[#eee] bg-white p-5 shadow-sm transition hover:border-[#b76e79]/30 hover:shadow-md"
+            >
+              <p className="text-sm text-[#666]">Comissões pendentes</p>
+              <p className="mt-1 text-2xl font-semibold text-amber-600">
+                {comissoesPendentes === null ? "…" : `${comissoesPendentes.toFixed(2)} €`}
+              </p>
+            </Link>
           </div>
 
           {/* Próximas marcações e Pagamentos pendentes */}

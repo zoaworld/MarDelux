@@ -53,9 +53,12 @@ export function invalidate(key: string): void {
 export const CACHE_KEYS = {
   horario: "horario",
   site: "site",
+  homeCards: "homeCards",
   servicos: "servicos",
   servicosAdmin: "servicosAdmin",
   marcacoes: "marcacoes",
+  eventos: "eventos",
+  codigosPromocionais: "codigosPromocionais",
   /** Prefixo para cache de marcações por cliente: marcacoesCliente:${email} */
   marcacoesCliente: "marcacoesCliente",
 } as const;

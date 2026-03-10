@@ -14,6 +14,10 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  updateEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -23,6 +27,9 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfileName: (displayName: string) => Promise<void>;
+  updateUserEmail: (newEmail: string, currentPassword: string) => Promise<void>;
+  updateUserPassword: (newPassword: string, currentPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -67,9 +74,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   }, []);
 
+  const updateProfileName = useCallback(async (displayName: string) => {
+    if (!auth?.currentUser) throw new Error("Não está autenticado");
+    await updateProfile(auth.currentUser, { displayName: displayName.trim() });
+  }, []);
+
+  const reauthenticate = useCallback(async (email: string, password: string) => {
+    if (!auth?.currentUser) throw new Error("Não está autenticado");
+    const cred = EmailAuthProvider.credential(email, password);
+    await reauthenticateWithCredential(auth.currentUser, cred);
+  }, []);
+
+  const updateUserEmail = useCallback(
+    async (newEmail: string, currentPassword: string) => {
+      if (!auth?.currentUser) throw new Error("Não está autenticado");
+      const email = auth.currentUser.email ?? "";
+      await reauthenticate(email, currentPassword);
+      await updateEmail(auth.currentUser, newEmail.trim());
+    },
+    [reauthenticate]
+  );
+
+  const updateUserPassword = useCallback(
+    async (newPassword: string, currentPassword: string) => {
+      if (!auth?.currentUser) throw new Error("Não está autenticado");
+      const email = auth.currentUser.email ?? "";
+      await reauthenticate(email, currentPassword);
+      await updatePassword(auth.currentUser, newPassword);
+    },
+    [reauthenticate]
+  );
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, signIn, signUp, signOut }}
+      value={{
+        user,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        updateProfileName,
+        updateUserEmail,
+        updateUserPassword,
+      }}
     >
       {children}
     </AuthContext.Provider>

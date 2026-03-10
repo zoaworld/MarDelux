@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       .collection(CONFIG_COLLECTION)
       .doc(HOME_CARDS_DOC_ID)
       .get();
-    if (!snap.exists()) {
+    if (!snap.exists) {
       return NextResponse.json([]);
     }
     const data = snap.data();

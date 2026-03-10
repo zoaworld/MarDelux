@@ -100,8 +100,9 @@ async function fetchHorarioConfig(): Promise<HorarioConfig> {
   try {
     const ref = doc(db, CONFIG_COLLECTION, HORARIO_DOC_ID);
     const snap = await getDoc(ref);
-    if (!snap.exists()) return defaultConfig;
+    if (!snap.exists) return defaultConfig;
     const d = snap.data();
+    if (!d) return defaultConfig;
     const rawDias = d.diasSemana as DiaSemanaConfig[] | undefined;
     const feriados = (d.feriados as FeriadoConfig[] | undefined) ?? [];
     // Normalizar cada dia: fechado deve ser boolean explícito (Firestore pode omitir false)
@@ -153,8 +154,9 @@ async function fetchSiteConfig(): Promise<SiteConfig> {
   try {
     const ref = doc(db, CONFIG_COLLECTION, SITE_DOC_ID);
     const snap = await getDoc(ref);
-    if (!snap.exists()) return {};
+    if (!snap.exists) return {};
     const d = snap.data();
+    if (!d) return {};
     return {
       nomeEmpresa: typeof d.nomeEmpresa === "string" ? d.nomeEmpresa : undefined,
       email: typeof d.email === "string" ? d.email : undefined,

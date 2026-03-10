@@ -15,8 +15,8 @@ import type { CodigoPromocional } from "@/types";
 
 const COLLECTION = "codigos_promocionais";
 
-function mapDocToCodigo(d: { id: string; data: () => Record<string, unknown> }): CodigoPromocional {
-  const x = d.data();
+function mapDocToCodigo(d: { id: string; data: () => Record<string, unknown> | undefined }): CodigoPromocional {
+  const x = d.data() ?? {};
   const toIso = (v: unknown) =>
     typeof v === "object" && v && "toDate" in v && typeof (v as { toDate: () => Date }).toDate === "function"
       ? (v as { toDate: () => Date }).toDate().toISOString()
@@ -79,7 +79,7 @@ export async function getCodigoPromocionalById(id: string): Promise<CodigoPromoc
   if (!db) return null;
   const ref = doc(db, COLLECTION, id);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
+  if (!snap.exists) return null;
   return mapDocToCodigo(snap);
 }
 
@@ -138,9 +138,9 @@ export async function incrementarUsoCodigo(id: string): Promise<void> {
   if (!db) throw new Error("Firebase não configurado.");
   const ref = doc(db, COLLECTION, id);
   const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Código não encontrado");
+  if (!snap.exists) throw new Error("Código não encontrado");
   const data = snap.data();
-  const usosAtuais = ((data.usosAtuais as number) ?? 0) + 1;
+  const usosAtuais = ((data?.usosAtuais as number) ?? 0) + 1;
   await updateDoc(ref, { usosAtuais, updatedAt: Timestamp.now() });
   invalidate(CACHE_KEYS.codigosPromocionais);
 }

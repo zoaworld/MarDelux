@@ -52,8 +52,8 @@ export async function getServicosAdmin(): Promise<Servico[]> {
   return getCached(CACHE_KEYS.servicosAdmin, CACHE_TTL.servicos, fetchServicosAdmin);
 }
 
-function mapDocToServico(d: { id: string; data: () => Record<string, unknown> }): Servico {
-  const data = d.data();
+function mapDocToServico(d: { id: string; data: () => Record<string, unknown> | undefined }): Servico {
+  const data = d.data() ?? {};
   return {
     id: d.id,
     nome: (data.nome as string) ?? "",
@@ -72,7 +72,7 @@ export async function getServicoById(id: string): Promise<Servico | null> {
   if (!db) return null;
   const ref = doc(db, COLLECTION, id);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
+  if (!snap.exists) return null;
   return mapDocToServico(snap);
 }
 

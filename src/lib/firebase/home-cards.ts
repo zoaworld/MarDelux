@@ -35,7 +35,7 @@ async function fetchHomeCards(): Promise<HomeCard[]> {
   try {
     const ref = doc(db, CONFIG_COLLECTION, HOME_CARDS_DOC_ID);
     const snap = await getDoc(ref);
-    if (!snap.exists()) return [];
+    if (!snap.exists) return [];
     const data = snap.data();
     const raw = data?.cards as Record<string, unknown>[] | undefined;
     if (!Array.isArray(raw) || raw.length === 0) return [];

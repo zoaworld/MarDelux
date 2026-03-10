@@ -19,8 +19,8 @@ const COLLECTION = "eventos";
 
 export const CACHE_TTL_EVENTOS = 5 * 60 * 1000; // 5 min
 
-function mapDocToEvento(d: { id: string; data: () => Record<string, unknown> }): Evento {
-  const x = d.data();
+function mapDocToEvento(d: { id: string; data: () => Record<string, unknown> | undefined }): Evento {
+  const x = d.data() ?? {};
   const toIso = (v: unknown) =>
     typeof v === "object" && v && "toDate" in v && typeof (v as { toDate: () => Date }).toDate === "function"
       ? (v as { toDate: () => Date }).toDate().toISOString()
@@ -118,7 +118,7 @@ export async function getEventoById(id: string): Promise<Evento | null> {
   if (!db) return null;
   const ref = doc(db, COLLECTION, id);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
+  if (!snap.exists) return null;
   return mapDocToEvento(snap);
 }
 

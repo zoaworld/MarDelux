@@ -161,7 +161,7 @@ export default function AdminHomeCardsPage() {
 
       let nextCards: HomeCard[] = [...cards];
       const cardData = {
-        ordem: editingIndex === -1 ? nextCards.length : editingIndex,
+        ordem: editingIndex === -1 ? nextCards.length : (editingIndex ?? 0),
         tipo: form.tipo ?? "informativo",
         imagemUrl: (form.imagemUrl ?? "").trim() || undefined,
         titulo: (form.titulo ?? "").trim() || undefined,

@@ -178,7 +178,7 @@ export default function AdminHomeCardsPage() {
           return;
         }
         nextCards = [...nextCards, { ...cardData, id: `c${nextCards.length}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as HomeCard];
-      } else {
+      } else if (editingIndex !== null && editingIndex >= 0) {
         nextCards[editingIndex] = { ...nextCards[editingIndex], ...cardData };
       }
 

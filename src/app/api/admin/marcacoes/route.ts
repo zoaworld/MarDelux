@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
         reagendadoCount: typeof x.reagendadoCount === "number" ? x.reagendadoCount : undefined,
         parceiroId: x.parceiroId as string | undefined,
         parceiroCodigo: x.parceiroCodigo as string | undefined,
+        origemParceiroNomeFromDoc: (x.origemParceiroNome as string) || undefined,
         precoOriginal: typeof x.precoOriginal === "number" ? x.precoOriginal : undefined,
         descontoParceiro: typeof x.descontoParceiro === "number" ? x.descontoParceiro : undefined,
         primeiraSessaoIndicacao: x.primeiraSessaoIndicacao as boolean | undefined,
@@ -157,11 +158,14 @@ export async function GET(request: NextRequest) {
       const parceiroId = item.parceiroId as string | undefined;
       const clienteId = (item.clienteIdFromDoc ?? (email && !GDPR_DELETED_REGEX.test(email) ? emailToClienteId.get(email) : null)) ?? null;
       const ficha = clienteId ? clienteIdToFicha.get(clienteId) : undefined;
+      const { origemParceiroNomeFromDoc, ...rest } = item as typeof item & { origemParceiroNomeFromDoc?: string };
       return {
-        ...item,
+        ...rest,
         clienteId,
         clienteNomeFicha: ficha?.nome,
-        origemParceiroNome: ficha?.indicadoPorParceiroId ? parceiroIdToNome.get(ficha.indicadoPorParceiroId) : undefined,
+        origemParceiroNome:
+          origemParceiroNomeFromDoc ??
+          (ficha?.indicadoPorParceiroId ? parceiroIdToNome.get(ficha.indicadoPorParceiroId) : undefined),
         parceiroNome: parceiroId ? parceiroIdToNome.get(parceiroId) : undefined,
       };
     });
@@ -213,6 +217,7 @@ export async function POST(request: NextRequest) {
       clienteNome: string;
       clienteEmail: string;
       clienteTelefone?: string;
+      clienteId?: string;
       servicoId: string;
       servicoNome: string;
       duracaoMinutos: number;
@@ -225,6 +230,7 @@ export async function POST(request: NextRequest) {
       precoOriginal?: number;
       descontoParceiro?: number;
       primeiraSessaoIndicacao?: boolean;
+      origemParceiroNome?: string;
     };
 
     if (!body.clienteNome?.trim() || !body.clienteEmail?.trim() || !body.servicoId || !body.data || !body.horaInicio) {
@@ -309,8 +315,10 @@ export async function POST(request: NextRequest) {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
+    if (body.clienteId) docData.clienteId = body.clienteId;
     if (body.parceiroId) docData.parceiroId = body.parceiroId;
     if (body.parceiroCodigo) docData.parceiroCodigo = body.parceiroCodigo;
+    if (body.origemParceiroNome?.trim()) docData.origemParceiroNome = body.origemParceiroNome.trim();
     if (typeof body.precoOriginal === "number") docData.precoOriginal = body.precoOriginal;
     if (typeof body.descontoParceiro === "number") docData.descontoParceiro = body.descontoParceiro;
     if (body.primeiraSessaoIndicacao === true) docData.primeiraSessaoIndicacao = true;

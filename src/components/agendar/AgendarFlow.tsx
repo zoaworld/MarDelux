@@ -398,6 +398,9 @@ export default function AgendarFlow() {
         clienteEmail: form.email.trim(),
         clienteTelefone: form.telefone.trim() || undefined,
         ...(clienteResolvido?.id && { clienteId: clienteResolvido.id }),
+        ...(clienteResolvido?.indicadoPorParceiroNome && !parceiroValidado && {
+          origemParceiroNome: clienteResolvido.indicadoPorParceiroNome,
+        }),
         servicoId: selectedServico.id,
         servicoNome: selectedServico.nome,
         duracaoMinutos: selectedServico.duracaoMinutos,

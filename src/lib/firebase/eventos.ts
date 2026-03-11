@@ -115,11 +115,15 @@ export async function getEventosPublicos(): Promise<Evento[]> {
 
 /** Evento por ID */
 export async function getEventoById(id: string): Promise<Evento | null> {
-  if (!db) return null;
-  const ref = doc(db, COLLECTION, id);
-  const snap = await getDoc(ref);
-  if (!snap.exists) return null;
-  return mapDocToEvento(snap);
+  if (!db || !id) return null;
+  try {
+    const ref = doc(db, COLLECTION, id);
+    const snap = await getDoc(ref);
+    if (!snap.exists) return null;
+    return mapDocToEvento(snap);
+  } catch {
+    return null;
+  }
 }
 
 /** Evento por slug */

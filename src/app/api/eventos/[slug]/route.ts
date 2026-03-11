@@ -30,6 +30,7 @@ function toEvento(doc: FirebaseFirestore.DocumentSnapshot): Record<string, unkno
     servicosIds: Array.isArray(x?.servicosIds) ? x.servicosIds : [],
     servicosMaxEscolha: typeof x?.servicosMaxEscolha === "number" ? x.servicosMaxEscolha : undefined,
     codigoAtivo: (x?.codigoAtivo as boolean) ?? false,
+    codigoPromocionalId: (x?.codigoPromocionalId as string) ?? undefined,
     checkoutAtivo: (x?.checkoutAtivo as boolean) ?? false,
     status: (x?.status as string) ?? "rascunho",
     slug: (x?.slug as string) ?? "",

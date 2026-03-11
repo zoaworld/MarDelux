@@ -299,25 +299,29 @@ export default function AdminHomeCardsPage() {
                 className="flex w-full max-w-xs flex-col overflow-hidden rounded-xl border border-[#eee] bg-white shadow-sm"
               >
                 <div className="relative aspect-[4/3] bg-[#f5f5f5]">
-                  {c.imagemUrl || (c.tipo === "evento" && eventos.find((e) => e.id === c.eventoId)) ? (
-                    <img
-                      src={
-                        c.imagemUrl ??
-                        (c.tipo === "evento"
-                          ? eventos.find((e) => e.id === c.eventoId)?.imagemUrl ?? ""
-                          : "")
-                      }
-                      alt=""
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' fill='%23ddd'%3E%3Crect width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='14'%3ESem imagem%3C/text%3E%3C/svg%3E";
-                      }}
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-[#999]">
-                      Sem imagem
-                    </div>
-                  )}
+                  {(() => {
+                    const imgSrc =
+                      c.imagemUrl ||
+                      (c.tipo === "evento" ? eventos.find((e) => e.id === c.eventoId)?.imagemUrl : null) ||
+                      null;
+                    if (!imgSrc) {
+                      return (
+                        <div className="flex h-full items-center justify-center text-sm text-[#999]">
+                          Sem imagem
+                        </div>
+                      );
+                    }
+                    return (
+                      <img
+                        src={imgSrc}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' fill='%23ddd'%3E%3Crect width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='14'%3ESem imagem%3C/text%3E%3C/svg%3E";
+                        }}
+                      />
+                    );
+                  })()}
                   <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
                     {tipoLabels[c.tipo]}
                   </span>

@@ -67,24 +67,39 @@ export default function AdminEventoDetailPage() {
     try {
       let codigoPromocionalId: string | undefined = form.codigoPromocionalId || undefined;
       if (form.codigoAtivo && form.codigoPromocional.codigo.trim()) {
-        // Criar novo código ao editar (ou primeiro save com código)
-        const resCod = await fetch("/api/admin/codigos-promocionais", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            codigo: form.codigoPromocional.codigo.trim().toUpperCase(),
-            descontoPercentagem: form.codigoPromocional.descontoPercentagem,
-            tipoAplicacao: form.codigoPromocional.tipoAplicacao,
-            eventoId: id,
-            ativo: true,
-          }),
-        });
-        const dataCod = await resCod.json();
-        if (!resCod.ok) throw new Error(dataCod.error ?? "Erro ao criar código");
-        codigoPromocionalId = dataCod.id;
+        const codigoPayload = {
+          codigo: form.codigoPromocional.codigo.trim().toUpperCase(),
+          descontoPercentagem: form.codigoPromocional.descontoPercentagem,
+          tipoAplicacao: form.codigoPromocional.tipoAplicacao,
+          eventoId: id,
+          ativo: true,
+        };
+        if (form.codigoPromocionalId) {
+          // Atualizar código existente
+          const resCod = await fetch(`/api/admin/codigos-promocionais/${form.codigoPromocionalId}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(codigoPayload),
+          });
+          const dataCod = await resCod.json();
+          if (!resCod.ok) throw new Error(dataCod.error ?? "Erro ao atualizar código");
+        } else {
+          // Criar novo código
+          const resCod = await fetch("/api/admin/codigos-promocionais", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(codigoPayload),
+          });
+          const dataCod = await resCod.json();
+          if (!resCod.ok) throw new Error(dataCod.error ?? "Erro ao criar código");
+          codigoPromocionalId = dataCod.id;
+        }
       }
 
       const payload = {

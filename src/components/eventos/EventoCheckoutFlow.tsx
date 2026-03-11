@@ -184,7 +184,11 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedHora, setSelectedHora] = useState<string>("");
   const [form, setForm] = useState({ nome: "", email: "", telefone: "" });
-  const [clienteResolvido, setClienteResolvido] = useState<{ id: string; nome: string } | null>(null);
+  const [clienteResolvido, setClienteResolvido] = useState<{
+    id: string;
+    nome: string;
+    indicadoPorParceiroNome?: string;
+  } | null>(null);
   const [resolvendoCliente, setResolvendoCliente] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [createdIds, setCreatedIds] = useState<string[]>([]);
@@ -216,8 +220,52 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
     }
   }, [user?.email, form.email]);
 
+  // Utilizador logado no step 3: carregar perfil completo (nome, email, telefone)
   useEffect(() => {
-    if (step !== 3 || !form.email.trim() || !form.telefone.trim()) return;
+    if (step !== 3 || !user) return;
+    let cancelled = false;
+    user.getIdToken().then((token) => {
+      if (cancelled) return;
+      fetch("/api/cliente/perfil", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled || data.error) return;
+          const nome = (data.nome ?? "").trim();
+          const email = (data.email ?? "").trim();
+          const telefone = (data.telefone ?? "").trim();
+          setForm({ nome, email, telefone });
+          if (email && telefone) {
+            fetch(`/api/agendar/resolver-cliente?${new URLSearchParams({ email, telefone })}`)
+              .then((r2) => r2.json())
+              .then((data2) => {
+                if (!cancelled && data2.encontrado && data2.cliente) {
+                  setClienteResolvido({
+                    id: data2.cliente.id,
+                    nome: data2.cliente.nome ?? nome,
+                    indicadoPorParceiroNome: data2.cliente.indicadoPorParceiroNome,
+                  });
+                  if ((data2.cliente.nome ?? "").trim()) {
+                    setForm((f) => ({ ...f, nome: (data2.cliente.nome ?? "").trim() }));
+                  }
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [step, user]);
+
+  // Sem login: resolver cliente por email+telefone quando ambos estão preenchidos
+  useEffect(() => {
+    if (user || step !== 3) return;
+    const email = form.email.trim().toLowerCase();
+    const telefone = form.telefone.trim();
+    if (!email || !email.includes("@") || !telefone || telefone.replace(/\D/g, "").length < 6) {
+      setClienteResolvido(null);
+      return;
+    }
     setResolvendoCliente(true);
     const params = new URLSearchParams({
       email: form.email.trim().toLowerCase(),
@@ -230,6 +278,7 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
           setClienteResolvido({
             id: data.cliente.id,
             nome: data.cliente.nome ?? "",
+            indicadoPorParceiroNome: data.cliente.indicadoPorParceiroNome,
           });
           setForm((f) => ({ ...f, nome: (data.cliente.nome ?? "").trim() }));
         } else {
@@ -238,7 +287,7 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
       })
       .catch(() => setClienteResolvido(null))
       .finally(() => setResolvendoCliente(false));
-  }, [step, form.email, form.telefone]);
+  }, [step, user, form.email, form.telefone]);
 
   const eventoServicos = servicos.filter((s) => evento?.servicosIds?.includes(s.id));
   const selectedServicos = eventoServicos.filter((s) => selectedIds.includes(s.id));
@@ -250,9 +299,14 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
 
   const currentServico = selectedServicos[currentSlotIndex];
 
+  const dataInicioStr = evento?.dataInicio ?? "";
+  const dataFimStr = evento?.dataFim ?? "";
+
   const loadSlots = useCallback(() => {
     if (!selectedData || !currentServico || !horarioConfig) return;
     setLoadingSlots(true);
+    const evStart = dataInicioStr ? new Date(dataInicioStr) : null;
+    const evEnd = dataFimStr ? new Date(dataFimStr) : null;
     getMarcacoesByDate(selectedData)
       .then((ocupados) => {
         const disp = getSlotsDisponiveis(
@@ -262,12 +316,12 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
           horarioConfig
         );
         const filtered =
-          eventStart && eventEnd
+          evStart && evEnd
             ? filterSlotsByEventWindow(
                 disp,
                 selectedData,
-                eventStart,
-                eventEnd,
+                evStart,
+                evEnd,
                 currentServico.duracaoMinutos
               )
             : disp;
@@ -275,7 +329,7 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
       })
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
-  }, [selectedData, currentServico, horarioConfig, eventStart, eventEnd]);
+  }, [selectedData, currentServico, horarioConfig, dataInicioStr, dataFimStr]);
 
   useEffect(() => {
     loadSlots();
@@ -343,6 +397,9 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
           clienteEmail: form.email.trim(),
           clienteTelefone: form.telefone.trim(),
           clienteId: clienteResolvido?.id,
+          ...(clienteResolvido?.indicadoPorParceiroNome && {
+            origemParceiroNome: clienteResolvido.indicadoPorParceiroNome,
+          }),
           servicoId: sv.id,
           servicoNome: sv.nome,
           duracaoMinutos: sv.duracaoMinutos,
@@ -506,23 +563,42 @@ export default function EventoCheckoutFlow({ slug }: EventoCheckoutFlowProps) {
         <>
           <div className="rounded-xl border border-[var(--gray-light)] bg-white p-4">
             <h3 className="font-medium text-[var(--foreground)]">Resumo</h3>
+            {descontoPct > 0 && (
+              <p className="mt-2 rounded-lg bg-[var(--rose-gold-light)]/50 px-3 py-2 text-sm text-[var(--rose-gold)]">
+                Código promocional do evento aplicado: {descontoPct}% de desconto
+              </p>
+            )}
             <ul className="mt-2 space-y-1 text-sm text-[var(--gray-dark)]">
               {selectedServicos.map((s) => {
                 const slot = slotsPorServico.find((x) => x.servicoId === s.id);
+                const precoServico = descontoPct > 0
+                  ? Math.round((s.preco * (1 - descontoPct / 100)) * 100) / 100
+                  : s.preco;
                 return (
                   <li key={s.id}>
-                    {s.nome} — {slot ? formatDate(slot.data) : ""} {slot?.horaInicio} — {s.preco} €
+                    {s.nome} — {slot ? formatDate(slot.data) : ""} {slot?.horaInicio} —{" "}
+                    {descontoPct > 0 ? (
+                      <span>
+                        <span className="line-through text-[var(--gray-mid)]">{s.preco} €</span>{" "}
+                        <span className="text-[var(--rose-gold)]">{precoServico} €</span>
+                      </span>
+                    ) : (
+                      `${s.preco} €`
+                    )}
                   </li>
                 );
               })}
             </ul>
             <p className="mt-3 font-medium">
-              Total: {totalOriginal} €
-              {descontoPct > 0 && (
-                <span className="text-[var(--rose-gold)]">
-                  {" "}
-                  → {totalFinal} € (desconto {descontoPct}%)
+              Total:{" "}
+              {descontoPct > 0 ? (
+                <span>
+                  <span className="line-through text-[var(--gray-mid)]">{totalOriginal} €</span>{" "}
+                  <span className="text-[var(--rose-gold)]">{totalFinal} €</span>
+                  {" "}(desconto {descontoPct}%)
                 </span>
+              ) : (
+                `${totalOriginal} €`
               )}
             </p>
           </div>

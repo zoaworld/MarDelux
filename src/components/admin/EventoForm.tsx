@@ -69,9 +69,10 @@ const defaultForm: EventoFormData = {
   slug: "",
 };
 
-function toFormData(e: Evento): EventoFormData {
+function toFormData(e: Evento & { codigoPromocional?: { codigo: string; descontoPercentagem: number; tipoAplicacao: "site" | "evento" } }): EventoFormData {
   const di = e.dataInicio ? new Date(e.dataInicio) : null;
   const df = e.dataFim ? new Date(e.dataFim) : null;
+  const cp = e.codigoPromocional;
   return {
     ...defaultForm,
     modelo: e.modelo,
@@ -89,6 +90,9 @@ function toFormData(e: Evento): EventoFormData {
     servicosIds: e.servicosIds ?? [],
     servicosMaxEscolha: e.servicosMaxEscolha ?? 1,
     codigoAtivo: e.codigoAtivo ?? false,
+    codigoPromocional: cp
+      ? { codigo: cp.codigo ?? "", descontoPercentagem: cp.descontoPercentagem ?? 0, tipoAplicacao: cp.tipoAplicacao ?? "evento" }
+      : defaultForm.codigoPromocional,
     codigoPromocionalId: e.codigoPromocionalId ?? "",
     checkoutAtivo: e.checkoutAtivo ?? false,
     status: e.status ?? "rascunho",

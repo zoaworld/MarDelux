@@ -485,7 +485,10 @@ export default function AdminClienteDetailPage() {
         payload.precoOriginal = precoOriginal;
         payload.descontoParceiro = precoOriginal - precoFinal;
         payload.primeiraSessaoIndicacao = true;
+      } else if (cliente.indicadoPorParceiroNome) {
+        payload.origemParceiroNome = cliente.indicadoPorParceiroNome;
       }
+      if (cliente.id) payload.clienteId = cliente.id;
       const res = await fetch("/api/admin/marcacoes", {
         method: "POST",
         headers: {

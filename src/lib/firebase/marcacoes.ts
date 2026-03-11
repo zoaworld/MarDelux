@@ -32,6 +32,8 @@ export interface MarcacaoInput {
   /** Parceiro que indicou (referral) */
   parceiroId?: string;
   parceiroCodigo?: string;
+  /** Nome do parceiro que indicou o cliente (da ficha), para exibir "Origem" na agenda mesmo em fallback */
+  origemParceiroNome?: string;
   precoOriginal?: number;
   descontoParceiro?: number;
   primeiraSessaoIndicacao?: boolean;
@@ -246,6 +248,7 @@ async function fetchAllMarcacoes(max = 200) {
         reagendadoCount: typeof x.reagendadoCount === "number" ? x.reagendadoCount : undefined,
         parceiroId: x.parceiroId as string | undefined,
         parceiroCodigo: x.parceiroCodigo as string | undefined,
+        origemParceiroNome: (x.origemParceiroNome as string) || undefined,
         precoOriginal: typeof x.precoOriginal === "number" ? x.precoOriginal : undefined,
         descontoParceiro: typeof x.descontoParceiro === "number" ? x.descontoParceiro : undefined,
         primeiraSessaoIndicacao: x.primeiraSessaoIndicacao as boolean | undefined,
@@ -395,6 +398,7 @@ export async function createMarcacao(input: MarcacaoInput): Promise<string> {
   if (input.clienteId) docData.clienteId = input.clienteId;
   if (input.parceiroId) docData.parceiroId = input.parceiroId;
   if (input.parceiroCodigo) docData.parceiroCodigo = input.parceiroCodigo;
+  if (input.origemParceiroNome?.trim()) docData.origemParceiroNome = input.origemParceiroNome.trim();
   if (typeof input.precoOriginal === "number") docData.precoOriginal = input.precoOriginal;
   if (typeof input.descontoParceiro === "number") docData.descontoParceiro = input.descontoParceiro;
   if (input.primeiraSessaoIndicacao === true) docData.primeiraSessaoIndicacao = true;

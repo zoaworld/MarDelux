@@ -66,22 +66,31 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
       let list: MarcacaoAdmin[];
       const token = await user?.getIdToken?.();
       if (token) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
         const url = force ? "/api/admin/marcacoes?nocache=1" : "/api/admin/marcacoes";
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (res.ok) {
-          list = (await res.json()) as MarcacaoAdmin[];
-        } else {
-          throw new Error("API error");
+        let lastErr: unknown;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+            const res = await fetch(url, {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            if (res.ok) {
+              list = (await res.json()) as MarcacaoAdmin[];
+              setMarcacoes(list);
+              return;
+            }
+            throw new Error("API error");
+          } catch (e) {
+            lastErr = e;
+            if (attempt < 1) await new Promise((r) => setTimeout(r, 800));
+          }
         }
-      } else {
-        list = (await getAllMarcacoes()) as MarcacaoAdmin[];
+        throw lastErr;
       }
+      list = (await getAllMarcacoes()) as MarcacaoAdmin[];
       setMarcacoes(list);
     } catch {
       try {

@@ -84,7 +84,20 @@ export async function GET(
     if (!doc.exists) {
       return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
     }
-    return NextResponse.json(toEvento(doc));
+    const evento = toEvento(doc) as Record<string, unknown>;
+    const codigoId = evento.codigoPromocionalId as string | undefined;
+    if (codigoId) {
+      const codDoc = await adminDb.collection("codigos_promocionais").doc(codigoId).get();
+      if (codDoc.exists) {
+        const d = codDoc.data();
+        evento.codigoPromocional = {
+          codigo: (d?.codigo as string) ?? "",
+          descontoPercentagem: (d?.descontoPercentagem as number) ?? 0,
+          tipoAplicacao: (d?.tipoAplicacao as string) ?? "evento",
+        };
+      }
+    }
+    return NextResponse.json(evento);
   } catch (err) {
     console.error("[api/admin/eventos/[id] GET]", err);
     return NextResponse.json({ error: "Erro ao carregar evento" }, { status: 503 });

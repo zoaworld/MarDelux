@@ -25,7 +25,10 @@ export default function HomeCardsSection() {
 
   useEffect(() => {
     fetch("/api/home-cards")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
       .then((data) => {
         if (Array.isArray(data)) setCards(data);
         else setCards([]);

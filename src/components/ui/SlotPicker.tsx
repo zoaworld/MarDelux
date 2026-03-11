@@ -64,7 +64,7 @@ export function SlotPicker({
 
   return (
     <div className="space-y-4">
-      {showPeriodTabs && slots.length > 6 && (
+      {showPeriodTabs && slots.length > 0 && (
         <div className="flex gap-1.5 rounded-xl bg-gray-100/80 p-1">
           {PERIODOS.map((p) => {
             const hasSlots = filterByPeriod(slots, p.id).length > 0;

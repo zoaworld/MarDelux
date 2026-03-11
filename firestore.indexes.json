@@ -45,6 +45,30 @@
       "fields": [
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "itens_inventario",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoriaId", "order": "ASCENDING" },
+        { "fieldPath": "nome", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "movimentos_inventario",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "itemId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "custos_mensais",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoriaId", "order": "ASCENDING" },
+        { "fieldPath": "mes", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

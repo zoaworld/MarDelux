@@ -56,11 +56,18 @@ export default function HomeCardsSection() {
           const isFotoLink = card.tipo === "foto_link";
           const isEvento = card.tipo === "evento";
 
+          const toAbsoluteUrl = (url: string) => {
+            const u = url.trim();
+            if (!u) return u;
+            if (/^https?:\/\//i.test(u)) return u;
+            return `https://${u}`;
+          };
+
           const href =
             isEvento && card.slug
               ? `/eventos/${card.slug}`
               : isFotoLink && card.linkUrl
-                ? card.linkUrl
+                ? toAbsoluteUrl(card.linkUrl)
                 : null;
 
           const content = (
@@ -99,7 +106,9 @@ export default function HomeCardsSection() {
                     {card.descricao}
                   </p>
                 )}
-                {isInformativo && card.conteudoExpandido && (
+                {((isInformativo && card.conteudoExpandido) ||
+                  (isEvento && card.slug) ||
+                  (isFotoLink && card.linkUrl)) && (
                   <p className="mt-2 text-sm font-medium text-[var(--rose-gold)]">
                     Clicar para ver mais →
                   </p>
@@ -109,14 +118,21 @@ export default function HomeCardsSection() {
           );
 
           if (href) {
+            if (isFotoLink) {
+              return (
+                <a
+                  key={card.id}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  {content}
+                </a>
+              );
+            }
             return (
-              <Link
-                key={card.id}
-                href={href}
-                target={isFotoLink ? "_blank" : undefined}
-                rel={isFotoLink ? "noopener noreferrer" : undefined}
-                className="block"
-              >
+              <Link key={card.id} href={href} className="block">
                 {content}
               </Link>
             );

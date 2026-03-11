@@ -19,6 +19,8 @@ export default function AdminDashboardPage() {
   const [clientesCount, setClientesCount] = useState<number | null>(null);
   const [parceirosCount, setParceirosCount] = useState<number | null>(null);
   const [comissoesPendentes, setComissoesPendentes] = useState<number | null>(null);
+  const [custosMesAtual, setCustosMesAtual] = useState<number | null>(null);
+  const [itensStockBaixo, setItensStockBaixo] = useState<number | null>(null);
 
   const fetchClientesCount = useCallback(async () => {
     const token = await user?.getIdToken?.();
@@ -71,6 +73,41 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     fetchParceirosAndComissoes();
   }, [fetchParceirosAndComissoes]);
+
+  const fetchInventarioAndCustos = useCallback(async () => {
+    const token = await user?.getIdToken?.();
+    if (!token) return;
+    try {
+      const mesAtual = new Date().toISOString().slice(0, 7);
+      const [itensRes, custosRes] = await Promise.all([
+        fetch("/api/admin/inventario/itens", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/admin/custos/mensais?mes=${mesAtual}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      if (itensRes.ok) {
+        const itens = (await itensRes.json()) as { stockMinimo: number; quantidadeAtual: number }[];
+        setItensStockBaixo(
+          itens.filter((i) => i.stockMinimo > 0 && i.quantidadeAtual < i.stockMinimo).length
+        );
+      } else {
+        setItensStockBaixo(0);
+      }
+      if (custosRes.ok) {
+        const custos = (await custosRes.json()) as { valor: number }[];
+        setCustosMesAtual(custos.reduce((s, c) => s + c.valor, 0));
+      } else {
+        setCustosMesAtual(0);
+      }
+    } catch {
+      setItensStockBaixo(0);
+      setCustosMesAtual(0);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchInventarioAndCustos();
+  }, [fetchInventarioAndCustos]);
 
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date();
@@ -179,6 +216,24 @@ export default function AdminDashboardPage() {
               <p className="text-sm text-[#666]">Comissões pendentes</p>
               <p className="mt-1 text-2xl font-semibold text-amber-600">
                 {comissoesPendentes === null ? "…" : `${comissoesPendentes.toFixed(2)} €`}
+              </p>
+            </Link>
+            <Link
+              href="/admin/operacional?tab=inventario"
+              className="rounded-xl border border-[#eee] bg-white p-5 shadow-sm transition hover:border-[#b76e79]/30 hover:shadow-md"
+            >
+              <p className="text-sm text-[#666]">Itens em stock baixo</p>
+              <p className="mt-1 text-2xl font-semibold text-[#171717]">
+                {itensStockBaixo === null ? "…" : itensStockBaixo}
+              </p>
+            </Link>
+            <Link
+              href="/admin/operacional?tab=custos"
+              className="rounded-xl border border-[#eee] bg-white p-5 shadow-sm transition hover:border-[#b76e79]/30 hover:shadow-md"
+            >
+              <p className="text-sm text-[#666]">Custos deste mês</p>
+              <p className="mt-1 text-2xl font-semibold text-[#171717]">
+                {custosMesAtual === null ? "…" : `${custosMesAtual.toFixed(2)} €`}
               </p>
             </Link>
           </div>
